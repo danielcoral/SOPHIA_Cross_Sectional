@@ -1,5 +1,5 @@
 get_cluster_descriptives <- function(dataset, cluster_probs){
-  long_summary <- data.frame(cluster = integer(0), variable = character(0), n_allocated = integer(0), perc_allocated = numeric(0), wtd_mean = numeric(0), wtd_std = numeric(0), wtd_q0 = numeric(0), wtd_q25 = numeric(0), wtd_q50 = numeric(0), wtd_q70 = numeric(0), wtd_q100 = numeric(0))
+  long_summary <- data.frame(cluster = integer(0), variable = character(0), n_allocated = integer(0), perc_allocated = numeric(0), wtd_mean = numeric(0), wtd_std = numeric(0), wtd_q0 = numeric(0), wtd_q25 = numeric(0), wtd_q50 = numeric(0), wtd_q75 = numeric(0), wtd_q100 = numeric(0))
   for (col in 1:ncol(cluster_probs)){
     clus <- colnames(cluster_probs)[col]
     n_allocated <- sum(cluster_probs[,col] > 0.8)
