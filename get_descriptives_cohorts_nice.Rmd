@@ -1,0 +1,162 @@
+---
+title: "functions and useage"
+output: html_document
+date: "2023-04-05"
+---
+
+```{r}
+library(haven)
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+```
+
+loading biomarker data 
+```{r}
+recoded_dat <- read_tsv("P:/FSE_MACSBIO/Smit, Femke/clustering project/data/recoded_dat.tsv", show_col_types = FALSE)
+# [is.na(recoded_dis)] <- 0
+
+strat_raw_dat <- recoded_dat %>% split( f = .$sex) %>% map(select, -c("sex"))
+map(strat_raw_dat, head)
+
+strat_dat <- recoded_dat %>%
+  split(f = .$sex) %>%
+  map(
+    ~{
+      .x %>%
+        names %>%
+        setdiff(c("eid", "sex", "age", "smoking", "bmi")) %>%
+        map_dfc(
+          function(feature){
+            paste(feature, "~ age + smoking + bmi") %>%
+              lm(data = .x) %>%
+              resid %>%
+              scale %>%
+              data.frame %>%
+              setNames(feature)
+          }
+        ) %>%
+        mutate(eid = .x$eid, .before = 1)
+    }
+  )
+map(strat_dat, head)
+```
+
+loading disease data
+```{r}
+recoded_dis <- read_tsv("P:/FSE_MACSBIO/Smit, Femke/clustering project/data/recoded_dis2.tsv", show_col_types = FALSE)  #any cancer is skin + other cancers
+head(recoded_dis)
+
+strat_dis <- merge(recoded_dat[,c("eid","sex")], recoded_dis, by = "eid") %>% split(f = .$sex) %>% map(select, -"sex")
+map(strat_dis, head)
+```
+
+defining function cluster probabilities, cluster characteristics, cluster weighted disease prevalences
+```{r}
+getclusprob <- function(X, centers, covmats, weights){
+    # Calculating probability density functions
+    pdfs <- map2(centers, covmats, function(mu, covmat){ mvtnorm::dmvnorm(X, mu, covmat) })
+    # Calculating likelihoods
+    L <- map2(pdfs, weights, function(pd, w){ pd * w })
+    # Joining in a matrix
+    Lmat <- do.call(cbind, L)
+    # Scaling by row to obtain probabilities
+    probs <- Lmat / rowSums(Lmat)
+    probs
+}
+
+getclusproball <- function(dataset, parameters){
+  d <- select(dataset, -eid)
+  cluspars <- parameters
+  centers <- map(cluspars, pluck, "center")
+  covmats <- map(cluspars, pluck, "cov")
+  weights <- map(cluspars, pluck, "weight")
+  getclusprob(d, centers, covmats, weights)
+}
+
+get_cluster_descriptives <- function(dataset, clus_probs){
+  dataset <- data.frame(dataset)
+  long_summary <- data.frame(cluster = integer(0), n_allocated = integer(0), perc_allocated = numeric(0), variable = character(0),  wtd_mean = numeric(0) , wtd_std = numeric(0), wtd_q0 = numeric(0), wtd_q25 = numeric(0), wtd_q50 = numeric(0), wtd_q75 = numeric(0), wtd_q100 = numeric(0))
+  for (col in 1:ncol(clus_probs)){
+    clus_name <- colnames(clus_probs)[col]
+    probs_col <- clus_probs[,col]
+    n_allocated <- sum(probs_col > 0.8)
+    perc_allocated <- n_allocated/nrow(dataset)
+    prob_sum <- sum(probs_col)
+    for (var in 2:ncol(dataset)){
+      var_name <- colnames(dataset)[var]
+      var_col <- dataset[,var]
+      wtd_mean <- sum(probs_col*var_col)/prob_sum
+      wtd_std <- sum(probs_col*(var_col - wtd_mean))/prob_sum %>% sqrt()
+      var_prob <- data.frame(var_col, probs_col)
+      var_prob <- var_prob[order(var_prob$var_col),]
+      var_prob$probs_cum <- cumsum(var_prob$probs_col)
+      q0 <- var_prob$var_col[1]
+      i25 <- which.min(abs(var_prob$probs_cum - 0.25*prob_sum))
+      q25 <- var_prob$var_col[i25]
+      i50 <- which.min(abs(var_prob$probs_cum - 0.5*prob_sum))
+      q50 <- var_prob$var_col[i50]
+      i75 <- which.min(abs(var_prob$probs_cum - 0.75*prob_sum))
+      q75 <- var_prob$var_col[i75]
+      q100 <- max(var_col)
+      row <- nrow(long_summary) + 1
+      long_summary[row,] <- c(clus_name, n_allocated, perc_allocated, var_name, wtd_mean, wtd_std, q0, q25, q50, q75, q100)
+    }
+  }
+  long_summary
+}
+
+get_disease_prev <- function(dataset, clus_probs){
+  #first column dataset needs to contain ids  
+  dataset <- data.frame(dataset)
+  long_summary <- data.frame(cluster = integer(0), n_allocated = integer(0), perc_allocated = numeric(0), variable = character(0),  wtd_prev = numeric(0))
+  for (col in 1:ncol(clus_probs)){
+    clus_name <- colnames(clus_probs)[col]
+    probs_col <- clus_probs[,col]
+    n_allocated <- sum(probs_col > 0.8)
+    perc_allocated <- n_allocated/nrow(dataset)
+    prob_sum <- sum(probs_col)
+    for (var in 2:ncol(dataset)){
+      var_name <- colnames(dataset)[var]
+      var_col <- dataset[,var]
+      wtd_prev <- sum(probs_col*var_col)/prob_sum*1000
+      row <- nrow(long_summary) + 1
+      long_summary[row,] <- c(clus_name, n_allocated, perc_allocated, var_name, wtd_prev)
+    }
+  }
+  long_summary
+}
+```
+
+getting cluster probabilities
+```{r}
+load("C:/Users/P70074150/Downloads/cluster_params_Maastricht.RData")
+cluster_probs <- map2(strat_dat, cluster_params, getclusproball) 
+map(cluster_probs, head)
+```
+
+
+getting cluster characteristics
+```{r}
+cluster_descriptives_resids <- map2(strat_dat, cluster_probs, get_cluster_descriptives)
+map(cluster_descriptives_resids, head)
+
+cluster_descriptives_raw <- map2(strat_raw_dat, cluster_probs, get_cluster_descriptives)
+map(cluster_descriptives_raw, head)
+```
+
+
+getting disease prevalence
+We can consider using this function also for smoking (and medicine use, etc, just all binary variables) as only the prevalence makes sense for these, there's no variance or uncertainty estimation relevant here.
+```{r}
+cluster_disease_prev <- map2(strat_dis, cluster_probs, get_disease_prev)
+map(cluster_disease_prev, head)
+
+```
+
+
+
+
+
+
