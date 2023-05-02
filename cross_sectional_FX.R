@@ -785,19 +785,6 @@ wtd_roc <- function(label, preds, weights = rep(1, length(label))){
     data.frame(thresholds, TN, TP, FP, FN)
 }
 
-# ROC AUC 
-aucfx <- function(roctab){
-    roctab$FPR <- roctab$FP / (roctab$FP + roctab$TN)
-    roctab$TPR <- roctab$TP / (roctab$TP + roctab$FN)
-    right <- roctab[-nrow(roctab),]
-    left <- roctab[-1,]
-    width <- right$FPR - left$FPR
-    rect.area <- left$TPR * width
-    triangle.h <- right$TPR - left$TPR
-    triangle.area <- triangle.h * width / 2
-    sum(rect.area, triangle.area)
-}
-
 # Weighted ROC AUC variance parameters
 wtd_rocaucvar <- function(labels, preds, weights = rep(1, length(labels))) {
     cases <- preds[labels == 1]
@@ -822,7 +809,7 @@ wtd_rocaucvar <- function(labels, preds, weights = rep(1, length(labels))) {
 
 # Global survival metrics at 5 years
 global_survmetrics <- function(survmod, sexstrat, incidencedf){
-    purrr::map2_dfr(
+    purrr::map2(
         survmod, sexstrat,
         function(mod, X){
             STATUS_Y5 <- dplyr::transmute(
@@ -834,11 +821,52 @@ global_survmetrics <- function(survmod, sexstrat, incidencedf){
             STATUS_Y5 <- dplyr::inner_join(STATUS_Y5, X, by = "eid")
             STATUS_Y5$pred_survprob <- survival:::predict.coxph(object = mod, newdata = STATUS_Y5, type = "survival")
             roctab <- wtd_roc(label = STATUS_Y5$outcome_value, preds = STATUS_Y5$pred_survprob)
-            rocauc <- aucfx(roctab)
             rocaucvar <- wtd_rocaucvar(label = STATUS_Y5$outcome_value, preds = STATUS_Y5$pred_survprob)
-            return(list(roctab = roctab, rocauc = rocauc, rocaucvar = rocaucvar))
+            return(list(roctab = roctab, rocaucvar = rocaucvar))
         }
     )
+}
+
+# Global survival metrics at 5 years
+cluster_survmetrics <- function(survmod, sexstrat, incidencedf, clusres){
+    purrr::pmap(
+        list(survmod, sexstrat, clusres),
+        function(mod, X, clusdat){
+            STATUS_Y5 <- dplyr::transmute(
+                incidencedf, 
+                eid,
+                outcome_value = ifelse(outcome_value == 1 & outcome_timeyrs > 5, 0, outcome_value),
+                outcome_timeyrs = 5
+            )
+            STATUS_Y5 <- dplyr::inner_join(STATUS_Y5, X, by = "eid")
+            STATUS_Y5$pred_survprob <- survival:::predict.coxph(object = mod, newdata = STATUS_Y5, type = "survival")
+            probs <- clusdat$probs
+            probs <- tidyr::pivot_longer(probs, -eid, names_to = "cluster", values_to = "cluster_prob")
+            STATUS_Y5 <- dplyr::inner_join(STATUS_Y5, probs, by = "eid")
+            STATUS_Y5 <- split(STATUS_Y5, ~cluster)
+            purrr::map(
+                STATUS_Y5,
+                function(cl){
+                    roctab <- wtd_roc(label = cl$outcome_value, preds = cl$pred_survprob, weights = cl$cluster_prob)
+                    rocaucvar <- wtd_rocaucvar(label = cl$outcome_value, preds = cl$pred_survprob, weight = cl$cluster_prob)
+                    return(list(roctab = roctab, rocaucvar = rocaucvar))
+                }
+            )
+        }
+    )
+}
+
+# ROC AUC 
+aucfx <- function(roctab){
+    roctab$FPR <- roctab$FP / (roctab$FP + roctab$TN)
+    roctab$TPR <- roctab$TP / (roctab$TP + roctab$FN)
+    right <- roctab[-nrow(roctab),]
+    left <- roctab[-1,]
+    width <- right$FPR - left$FPR
+    rect.area <- left$TPR * width
+    triangle.h <- right$TPR - left$TPR
+    triangle.area <- triangle.h * width / 2
+    sum(rect.area, triangle.area)
 }
 
 # Confidence intervals of ROC AUC curves
