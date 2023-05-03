@@ -579,12 +579,12 @@ adjclusdiseasesumfx_thresh <- function(clusdat, diseasedf, medsdf, X, thresh){
     probs <- clusdat$probs
     joindf <- tidyr::pivot_longer(probs, -eid, names_to = "cluster", values_to = "cluster_prob")
     basecovardf <- X[,c("eid", BODYSIZEINDEX, COVARIATES)]
-    joindf <- dplyr::inner_join(joindf, basecovardf, by = "eid", relationship = "many-to-many")
+    joindf <- dplyr::inner_join(joindf, basecovardf, by = "eid")
     meds <- names(medsdf)
     meds <- meds[meds != "eid"]
-    joindf <- dplyr::inner_join(joindf, medsdf, by = "eid", relationship = "many-to-many")
+    joindf <- dplyr::inner_join(joindf, medsdf, by = "eid")
     dxdf <- tidyr::pivot_longer(diseasedf, -eid, names_to = "disease", values_to = "status", values_drop_na = TRUE)
-    joindf <- dplyr::inner_join(joindf, dxdf, by = "eid", relationship = "many-to-many")
+    joindf <- dplyr::inner_join(joindf, dxdf, by = "eid")
     joindf <- tidyr::drop_na(joindf)
     joindf$cluster <- relevel(factor(joindf$cluster), ref = "cluster_0")
     purrr::map_dfr(
@@ -717,11 +717,11 @@ adjclusincidencesumfx_thresh <- function(clusdat, incidencedf, medsdf, X, thresh
     probs <- clusdat$probs
     joindf <- tidyr::pivot_longer(probs, -eid, names_to = "cluster", values_to = "cluster_prob")
     basecovardf <- X[,c("eid", BODYSIZEINDEX, COVARIATES)]
-    joindf <- dplyr::inner_join(joindf, basecovardf, by = "eid", relationship = "many-to-many")
+    joindf <- dplyr::inner_join(joindf, basecovardf, by = "eid")
     meds <- names(medsdf)
     meds <- meds[meds != "eid"]
-    joindf <- dplyr::inner_join(joindf, medsdf, by = "eid", relationship = "many-to-many")
-    joindf <- dplyr::inner_join(joindf, incidencedf, by = "eid", relationship = "many-to-many")
+    joindf <- dplyr::inner_join(joindf, medsdf, by = "eid")
+    joindf <- dplyr::inner_join(joindf, incidencedf, by = "eid")
     joindf <- tidyr::drop_na(joindf)
     joindf$cluster <- relevel(factor(joindf$cluster), ref = "cluster_0")
     survterm <- "survival::Surv(time = outcome_timeyrs, event = outcome_value)"
