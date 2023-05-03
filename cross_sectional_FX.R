@@ -194,7 +194,7 @@ umapclus_fx <- function(RESIDMAT){
     eids <- RESIDMAT$eid
     Xmat <- RESIDMAT[,names(RESIDMAT) != "eid"]
     n_total <- nrow(Xmat)
-    nn <- round(10 + 15 * (log10(n_total) - 4))
+    nn <- max(10, round(10 + 15 * (log10(n_total) - 4)))
     message("\t2. Running UMAP...")
     umapres <- uwot::umap(
         Xmat, n_components = 2, 
