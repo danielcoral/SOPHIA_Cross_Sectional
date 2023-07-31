@@ -132,7 +132,7 @@ All the columns in this table are coded 1 or 0 representing current diagnosis of
 |            |AntiHT      |Taking medication for hypertension
 |            |LipidLower  |Taking lipid-lowering medication 
 
-If any of the columns in this table are missing in your data, one option is to assume that none in your population had the disease.
+If any of the columns in this table are missing in your data, one option is to assume that none in your population had the disease, i.e., you should have a column with all 0.
 
 ### Survival data
 
@@ -530,15 +530,6 @@ This file should be uploaded to the respective folder of the cohort in Teams:
 
 <!-- BIBLIOGRAPHY START -->
 <div class="csl-bib-body">
-  <div class="csl-entry"><i id="zotero|10831815/UYLBIXH3"></i>
-    <div class="csl-left-margin">1. </div><div class="csl-right-inline">Coenders G, Pawlowsky-Glahn V. On interpretations of tests and effect sizes in regression models with a compositional predictor. SORT-Statistics and Operations Research Transactions [Internet]. 2020 Jun 26 [cited 2023 Jul 28];44(1):201–20. Available from: https://raco.cat/index.php/SORT/article/view/371189</div>
-  </div>
-  <div class="csl-entry"><i id="zotero|10831815/ZY2CL5NC"></i>
-    <div class="csl-left-margin">2. </div><div class="csl-right-inline">SCORE2 working group and ESC Cardiovascular risk collaboration. SCORE2 risk prediction algorithms: new models to estimate 10-year risk of cardiovascular disease in Europe. European Heart Journal [Internet]. 2021 Jul 1 [cited 2023 Jul 20];42(25):2439–54. Available from: https://doi.org/10.1093/eurheartj/ehab309</div>
-  </div>
-  <div class="csl-entry"><i id="zotero|10831815/FPUFQKFI"></i>
-    <div class="csl-left-margin">3. </div><div class="csl-right-inline">SCORE2-Diabetes Working Group and the ESC Cardiovascular Risk Collaboration. SCORE2-Diabetes: 10-year cardiovascular risk estimation in type 2 diabetes in Europe. European Heart Journal [Internet]. 2023 May 29 [cited 2023 Jul 13];ehad260. Available from: https://doi.org/10.1093/eurheartj/ehad260</div>
-  </div>
 </div>
 <!-- BIBLIOGRAPHY END -->
 

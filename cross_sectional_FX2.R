@@ -353,32 +353,36 @@ assocdxfx <- function(X){
         RES1 = purrr::map(
             data,
             function(DAT){
-                RES2 <- tibble::tibble(DX = DISEASES)
                 clusnames <- names(DAT)[grepl("^clr", names(DAT))]
+                RES2 <- tibble::tibble(DX = DISEASES)
                 RES2 <- dplyr::mutate(
                     RES2,
                     modres = purrr::map(
                         DX,
                         function(dx, D, clusnm){
-                            mod1 <- glm(
-                                formula = reformulate(
-                                    termlabels = clusnm, 
-                                    response = dx
-                                ), 
-                                family = binomial, data = D
-                            )
-                            mod2 <- glm(
-                                formula = reformulate(
-                                    termlabels = c(clusnm, MEDICATION), 
-                                    response = dx
-                                ), 
-                                family = binomial, data = D
-                            )
-                            bind_rows(
-                                OnlyClusters = dplyr::select(broom::tidy(mod1), term, estimate, se = std.error),
-                                ClustersMed = dplyr::select(broom::tidy(mod2), term, estimate, se = std.error),
-                                .id = "model"
-                            )
+                            if(sum(D[[dx]]) > 5){
+                                mod1 <- glm(
+                                    formula = reformulate(
+                                        termlabels = clusnm, 
+                                        response = dx
+                                    ), 
+                                    family = binomial, data = D
+                                )
+                                mod2 <- glm(
+                                    formula = reformulate(
+                                        termlabels = c(clusnm, MEDICATION), 
+                                        response = dx
+                                    ), 
+                                    family = binomial, data = D
+                                )
+                                bind_rows(
+                                    OnlyClusters = dplyr::select(broom::tidy(mod1), term, estimate, se = std.error),
+                                    ClustersMed = dplyr::select(broom::tidy(mod2), term, estimate, se = std.error),
+                                    .id = "model"
+                                )
+                            } else {
+                                data.frame(term = NA, estimate = NaN)
+                            }
                         },
                         D = DAT, clusnm = clusnames
                     )
