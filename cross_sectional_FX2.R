@@ -50,40 +50,6 @@ clusterprobcalc <- function(X){
     dplyr::select(RES, -c(resids, probs))
 }
 
-# CLR transformation
-clrcalc <- function(X){
-    dplyr::mutate(
-        X,
-        data = purrr::map(
-            data,
-            ~{
-                lower_bound <- 1e-10
-                upper_bound <- 1 - lower_bound
-                RES <- dplyr::mutate(
-                    .x,
-                    dplyr::across(
-                        dplyr::starts_with("prob"),
-                        function(CLUS){
-                            CLUS <- ifelse(CLUS < lower_bound, lower_bound, CLUS)
-                            CLUS <- ifelse(CLUS > upper_bound, upper_bound, CLUS)
-                            return(CLUS)
-                        },
-                        .names = "clr{.col}"
-                    ),
-                    Gmean = exp(rowMeans(log(dplyr::pick(dplyr::starts_with("clr"))))),
-                    dplyr::across(dplyr::starts_with("clr"), ~log(.x/Gmean))
-                )
-                RES <- dplyr::rename_with(
-                    RES,
-                    function(COLN){ gsub("prob", "", COLN) },
-                    dplyr::starts_with("clrprob")
-                )
-                dplyr::select(RES, -clrBC)
-            }
-        )
-    )
-}
-
 # Variable types
 vartype <- function(x){
     if(is.numeric(x)){
@@ -189,7 +155,7 @@ markerdistribfx <- function(X){
             data,
             ~{
                 RES2 <- tidyr::expand_grid(
-                    Variable = c(BIOMARKERS, COVARIATES),
+                    Variable = c(BIOMARKERS, COVARIATES, BODYSIZEINDEX),
                     Cluster = names(.x)[grepl("^prob", names(.x))]
                 )
                 RES2 <- dplyr::mutate(
@@ -259,21 +225,12 @@ countcovarsfx <- function(X){
             function(DAT){
                 clusnams <- names(DAT)[grepl("^prob", names(DAT))]
                 DXandMed <- c(DISEASES, MEDICATION)
-                RES1 <- tibble::tibble(
-                    Cluster = "Overall",
+                RES1 <- tidyr::expand_grid(
+                    Cluster = clusnams,
                     Covariate = DXandMed
                 )
                 RES1 <- dplyr::mutate(
                     RES1,
-                    Nclus = nrow(DAT),
-                    NclusDX = purrr::map_dbl(Covariate, ~sum(DAT[[.x]]))
-                )
-                RES2 <- tidyr::expand_grid(
-                    Cluster = clusnams,
-                    Covariate = DXandMed
-                )
-                RES2 <- dplyr::mutate(
-                    RES2,
                     Nclus = purrr::map_dbl(Cluster, ~sum(DAT[[.x]])),
                     NclusDX = purrr::map2_dbl(
                         Cluster, Covariate,
@@ -283,8 +240,7 @@ countcovarsfx <- function(X){
                         D = DAT
                     )
                 )
-                RES3 <- dplyr::bind_rows(RES1, RES2)
-                dplyr::mutate(RES3, Cluster = gsub("prob", "", Cluster))
+                dplyr::mutate(RES1, Cluster = gsub("prob", "", Cluster))
             }
         )
     )
@@ -305,24 +261,12 @@ countspectxfx <- function(X){
                     MED = list("AntiHT", "LipidLower", "Insulin",
                                c("Insulin", "AntiDM"))
                 )
-                RES1 <- dplyr::mutate(
-                    combs,
-                    Cluster = "Overall",
-                    NclusDXM = purrr::map2_dbl(
-                        DX, MED, 
-                        ~{
-                            disease <- DAT[[.x]] == 1
-                            anymed <- rowSums(DAT[,.y]) > 0
-                            sum(disease & anymed)
-                        }
-                    )
-                )
-                RES2 <- tidyr::expand_grid(
+                RES1 <- tidyr::expand_grid(
                     combs,
                     Cluster = clusnams
                 )
-                RES2 <- dplyr::mutate(
-                    RES2,
+                RES1 <- dplyr::mutate(
+                    RES1,
                     NclusDXM = purrr::pmap_dbl(
                         list(Cluster, DX, MED),
                         ~{
@@ -333,9 +277,8 @@ countspectxfx <- function(X){
                         }
                     )
                 )
-                RES3 <- dplyr::bind_rows(RES1, RES2)
                 dplyr::mutate(
-                    RES3,
+                    RES1,
                     Cluster = gsub("prob", "", Cluster),
                     MED = purrr::map_chr(MED, paste, collapse = "Or")
                 )
@@ -345,7 +288,7 @@ countspectxfx <- function(X){
     tidyr::unnest(RES, countres)
 }
 
-# Logistic regressions with cluster CLRs against current diseases
+# Logistic regressions with cluster probabilities against current diseases
 assocdxfx <- function(X){
     RES <- dplyr::transmute(
         X,
@@ -353,7 +296,9 @@ assocdxfx <- function(X){
         RES1 = purrr::map(
             data,
             function(DAT){
-                clusnames <- names(DAT)[grepl("^clr", names(DAT))]
+                clusnames <- names(DAT)[grepl("^prob", names(DAT))]
+                clusnames <- clusnames[clusnames != "probBC"]
+                DAT[clusnames] <- 10 * DAT[clusnames]
                 RES2 <- tibble::tibble(DX = DISEASES)
                 RES2 <- dplyr::mutate(
                     RES2,
@@ -381,7 +326,7 @@ assocdxfx <- function(X){
                                     .id = "model"
                                 )
                             } else {
-                                data.frame(term = NA, estimate = NaN)
+                                data.frame(term = NA, estimate = NaN, se = NA)
                             }
                         },
                         D = DAT, clusnm = clusnames
@@ -509,20 +454,19 @@ coxmodelsmace <- function(X){
                     age_term = 0.9938^age,
                     sex_term = dplyr::case_when(SEX == "Female" ~ 1.012, SEX == "Male" ~ 1), 
                     egfr = 142 * minkappa_alpha * maxkappa_exp * age_term * sex_term,
-                    lnegfr = log(egfr),
+                    lnegfr = log(egfr + 0.01),
                     lnegfrsq = lnegfr^2,
                     age_fg = age*fg,
                     age_lnegfr = age*lnegfr,
-                    bmi, 
                     whr, alt, crp,
                     HT, CKD, LiverFailure, RA, T1D,
                     Insulin, AntiDM, AntiHT, LipidLower,
-                    dplyr::across(dplyr::starts_with("clr"))
+                    dplyr::across(dplyr::starts_with("prob"), \(P) 10 * P)
                 )
                 dplyr::select(
                     MODELDAT, 
                     -c(scr, alpha, kappa, creat_kappa, minkappa, maxkappa, 
-                       minkappa_alpha, maxkappa_exp, age_term, sex_term, egfr)
+                       minkappa_alpha, maxkappa_exp, age_term, sex_term, egfr, probBC)
                 )
             }
         ),
@@ -536,13 +480,17 @@ coxmodelsmace <- function(X){
         mod_score2 = purrr::map(
             score2,
             ~{
-                MODELDAT <- dplyr::select(.x, -starts_with("clr"))
+                MODELDAT <- dplyr::select(.x, -dplyr::starts_with("prob"))
+                MODELDAT <- dplyr::select(MODELDAT, -dplyr::where(function(x){ all(x == 0) }))
                 survival::coxph(survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = MODELDAT)
             }
         ),
-        mod_score2clr = purrr::map(
+        mod_score2clus = purrr::map(
             score2,
-            ~survival::coxph(survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = .x)
+            ~{
+                MODELDAT <- dplyr::select(.x, -dplyr::where(function(x){ all(x == 0) }))
+                survival::coxph(survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = MODELDAT)
+            }
         )
     )
 }
@@ -552,7 +500,7 @@ macesurvcoefx <- function(X){
         X,
         sex,
         dplyr::across(
-            c(mod_score2, mod_score2clr),
+            c(mod_score2, mod_score2clus),
             ~purrr::map(
                 .x, 
                 function(MOD){ 
@@ -563,11 +511,11 @@ macesurvcoefx <- function(X){
             )
         ),
         RES1 = purrr::map2(
-            mod_score2, mod_score2clr,
-            ~bind_rows(score2 = .x, score2clr = .y, .id = "model")
+            mod_score2, mod_score2clus,
+            ~bind_rows(score2 = .x, score2clus = .y, .id = "model")
         ),
         mod_score2 = NULL,
-        mod_score2clr = NULL
+        mod_score2clus = NULL
     )
     tidyr::unnest(RES, RES1)
 }
@@ -578,31 +526,31 @@ comparemodsmace <- function(X){
         sex,
         LL0 = purrr::map_dbl(mod_null, logLik),
         dplyr::across(
-            c(mod_score2, mod_score2clr),
+            c(mod_score2, mod_score2clus),
             ~purrr::map_dbl(.x, logLik),
             .names = "LL{.col}"
         ),
         dplyr::across(
-            c(mod_score2, mod_score2clr),
+            c(mod_score2, mod_score2clus),
             ~purrr::map_dbl(.x, \(MOD) sum(!is.na(MOD$coefficients))),
             .names = "NV{.col}"
         ),
-        LRTstat = 2 * abs(LLmod_score2clr - LLmod_score2),
-        LRTdf = NVmod_score2clr - NVmod_score2,
+        LRTstat = 2 * abs(LLmod_score2clus - LLmod_score2),
+        LRTdf = NVmod_score2clus - NVmod_score2,
         LRTp = stats::pchisq(
             q = LRTstat,
             df = LRTdf,
             lower.tail = FALSE
         ),
-        AdeqInd = (LLmod_score2 - LL0) / (LLmod_score2clr - LL0),
+        AdeqInd = (LLmod_score2 - LL0) / (LLmod_score2clus - LL0),
         Cdat = purrr::map2(
-            mod_score2, mod_score2clr,
+            mod_score2, mod_score2clus,
             survival::concordance
         ),
         Cmod_score2 = purrr::map_dbl(Cdat, ~.x$concordance[1]),
         Cmodse_score2 = purrr::map_dbl(Cdat, ~diag(.x$var)[1]),
-        Cmod_score2clr = purrr::map_dbl(Cdat, ~.x$concordance[2]),
-        Cmodse_score2clr = purrr::map_dbl(Cdat, ~diag(.x$var)[1]),
+        Cmod_score2clus = purrr::map_dbl(Cdat, ~.x$concordance[2]),
+        Cmodse_score2clus = purrr::map_dbl(Cdat, ~diag(.x$var)[1]),
         Cdiff = purrr::map_dbl(Cdat, ~c(1,-1) %*% coef(.x)),
         Cdiffse = purrr::map_dbl(Cdat, ~sqrt(c(1,-1) %*% vcov(.x) %*% c(1,-1))),
         Cdiffp = 2 * pnorm(-abs(Cdiff/Cdiffse)),
@@ -615,7 +563,7 @@ AdeqIndClusMACEFx <- function(X){
         X,
         sex,
         dplyr::across(
-            c(mod_score2, mod_score2clr),
+            c(mod_score2, mod_score2clus),
             ~purrr::pmap(
                 list(macedf, score2, .x),
                 function(DAT, MODDAT, MOD){
@@ -648,13 +596,13 @@ AdeqIndClusMACEFx <- function(X){
             )
         ),
         RES1 = purrr::map2(
-            mod_score2, mod_score2clr, 
+            mod_score2, mod_score2clus, 
             ~pmin(.x/.y, 1)
         ),
         RES1 = purrr::map(
             RES1, ~tibble::tibble(Cluster = names(.x), AdeqInd = .x)
         ),
-        mod_score2 = NULL, mod_score2clr = NULL
+        mod_score2 = NULL, mod_score2clus = NULL
     )
     tidyr::unnest(RES, RES1)
 }
@@ -664,7 +612,7 @@ AdeqIndByPreMACEFx <- function(X){
         X,
         sex,
         RES1 = purrr::pmap(
-            list(score2, mod_score2, mod_score2clr),
+            list(score2, mod_score2, mod_score2clus),
             function(DAT, MOD1, MOD2){
                 NEWDAT <- dplyr::mutate(DAT, outcome_timeyrs = 10)
                 yhat1 <- 1 - survival:::predict.coxph(MOD1, NEWDAT, type = "survival")
@@ -795,13 +743,13 @@ DCurvMACEFx <- function(X){
         X,
         sex,
         RES1 = purrr::pmap(
-            list(score2, mod_score2, mod_score2clr),
+            list(score2, mod_score2, mod_score2clus),
             function(DAT, MOD1, MOD2){
                 NEWDAT <- mutate(DAT, outcome_timeyrs = 10)
                 DAT$score2_y <- 1 - survival:::predict.coxph(MOD1, NEWDAT, type = "survival")
-                DAT$score2clr_y <- 1 - survival:::predict.coxph(MOD2, NEWDAT, type = "survival")
+                DAT$score2clus_y <- 1 - survival:::predict.coxph(MOD2, NEWDAT, type = "survival")
                 dca(
-                    formula = survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ score2_y + score2clr_y,
+                    formula = survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ score2_y + score2clus_y,
                     data = DAT,
                     thresholds = seq(0, .25, .01),
                     time = 10
@@ -817,11 +765,11 @@ DCurvMACEbyClFx <- function(X){
         X,
         sex,
         RES1 = purrr::pmap(
-            list(macedf, score2, mod_score2, mod_score2clr),
+            list(macedf, score2, mod_score2, mod_score2clus),
             function(DAT, DATMOD, MOD1, MOD2){
                 NEWDAT <- dplyr::mutate(DATMOD, outcome_timeyrs = 10)
                 DATMOD$score2_y <- 1 - survival:::predict.coxph(MOD1, NEWDAT, type = "survival")
-                DATMOD$score2clr_y <- 1 - survival:::predict.coxph(MOD2, NEWDAT, type = "survival")
+                DATMOD$score2clus_y <- 1 - survival:::predict.coxph(MOD2, NEWDAT, type = "survival")
                 RES2 <- tibble::tibble(
                     Cluster = names(DAT)[grepl("^prob", names(DAT))]
                 )
@@ -831,7 +779,7 @@ DCurvMACEbyClFx <- function(X){
                         Cluster,
                         function(CL){
                             dca(
-                                formula = survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ score2_y + score2clr_y,
+                                formula = survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ score2_y + score2clus_y,
                                 data = DATMOD,
                                 thresholds = seq(0, .25, .01),
                                 time = 10,
@@ -854,40 +802,51 @@ coxmodelsdm <- function(X){
     dplyr::transmute(
         X,
         sex, dmdf,
-        baseclr = purrr::map(
+        baseclus = purrr::map(
             dmdf, 
-            ~dplyr::select(
+            ~dplyr::transmute(
                 .x,
                 outcome_timeyrs, outcome_value,
-                all_of(
-                    c(
-                        BIOMARKERS,
-                        BODYSIZEINDEX,
-                        COVARIATES,
-                        DISEASES[!DISEASES %in% c("T1D", "T2D")],
-                        MEDICATION[!MEDICATION %in% c("Insulin", "AntiDM")],
-                        names(.x)[grepl("^clr", names(.x))]
+                dplyr::across(
+                    dplyr::all_of(
+                        c(
+                            BIOMARKERS,
+                            COVARIATES,
+                            DISEASES[!DISEASES %in% c("T1D", "T2D")],
+                            MEDICATION[!MEDICATION %in% c("Insulin", "AntiDM")]
+                        )
                     )
-                )
+                ),
+                dplyr::across(
+                    dplyr::all_of(
+                        names(.x)[grepl("^prob", names(.x))]
+                    ),
+                    \(P) 10 * P
+                ),
+                probBC = NULL
             )
         ),      
         mod_null = purrr::map(
-            baseclr, 
+            baseclus, 
             ~survival::coxph(
                 survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ 1, 
                 data = .x
             )
         ),
         mod_base = purrr::map(
-            baseclr,
+            baseclus,
             ~{
-                MODELDAT <- dplyr::select(.x, -starts_with("clr"))
+                MODELDAT <- dplyr::select(.x, -dplyr::starts_with("prob"))
+                MODELDAT <- dplyr::select(MODELDAT, -dplyr::where(function(x){ all(x == 0) }))
                 survival::coxph(survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = MODELDAT)
             }
         ),
-        mod_baseclr = purrr::map(
-            baseclr,
-            ~survival::coxph(survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = .x)
+        mod_baseclus = purrr::map(
+            baseclus,
+            ~{
+                MODELDAT <- dplyr::select(.x, -dplyr::where(function(x){ all(x == 0) }))
+                survival::coxph(survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = MODELDAT)
+            }
         )
     )
 }
@@ -897,7 +856,7 @@ dmsurvcoefx <- function(X){
         X,
         sex,
         dplyr::across(
-            c(mod_base, mod_baseclr),
+            c(mod_base, mod_baseclus),
             ~purrr::map(
                 .x, 
                 function(MOD){ 
@@ -908,11 +867,11 @@ dmsurvcoefx <- function(X){
             )
         ),
         RES1 = purrr::map2(
-            mod_base, mod_baseclr,
-            ~bind_rows(base = .x, baseclr = .y, .id = "model")
+            mod_base, mod_baseclus,
+            ~bind_rows(base = .x, baseclus = .y, .id = "model")
         ),
         mod_base = NULL, 
-        mod_baseclr = NULL
+        mod_baseclus = NULL
     )
     tidyr::unnest(RES, RES1)
 }
@@ -923,31 +882,31 @@ comparemodsdm <- function(X){
         sex,
         LL0 = purrr::map_dbl(mod_null, logLik),
         dplyr::across(
-            c(mod_base, mod_baseclr),
+            c(mod_base, mod_baseclus),
             ~purrr::map_dbl(.x, logLik),
             .names = "LL{.col}"
         ),
         dplyr::across(
-            c(mod_base, mod_baseclr),
+            c(mod_base, mod_baseclus),
             ~purrr::map_dbl(.x, \(MOD) sum(!is.na(MOD$coefficients))),
             .names = "NV{.col}"
         ),
-        LRTstat = 2 * abs(LLmod_baseclr - LLmod_base),
-        LRTdf = NVmod_baseclr - NVmod_base,
+        LRTstat = 2 * abs(LLmod_baseclus - LLmod_base),
+        LRTdf = NVmod_baseclus - NVmod_base,
         LRTp = stats::pchisq(
             q = LRTstat,
             df = LRTdf,
             lower.tail = FALSE
         ),
-        AdeqInd = (LLmod_base - LL0) / (LLmod_baseclr - LL0),
+        AdeqInd = (LLmod_base - LL0) / (LLmod_baseclus - LL0),
         Cdat = purrr::map2(
-            mod_base, mod_baseclr,
+            mod_base, mod_baseclus,
             survival::concordance
         ),
         Cmod_base = purrr::map_dbl(Cdat, ~.x$concordance[1]),
         Cmodse_base = purrr::map_dbl(Cdat, ~diag(.x$var)[1]),
-        Cmod_baseclr = purrr::map_dbl(Cdat, ~.x$concordance[2]),
-        Cmodse_baseclr = purrr::map_dbl(Cdat, ~diag(.x$var)[1]),
+        Cmod_baseclus = purrr::map_dbl(Cdat, ~.x$concordance[2]),
+        Cmodse_baseclus = purrr::map_dbl(Cdat, ~diag(.x$var)[1]),
         Cdiff = purrr::map_dbl(Cdat, ~c(1,-1) %*% coef(.x)),
         Cdiffse = purrr::map_dbl(Cdat, ~sqrt(c(1,-1) %*% vcov(.x) %*% c(1,-1))),
         Cdiffp = 2 * pnorm(-abs(Cdiff/Cdiffse)),
@@ -960,9 +919,9 @@ AdeqIndClusDMFx <- function(X){
         X,
         sex,
         dplyr::across(
-            c(mod_base, mod_baseclr),
+            c(mod_base, mod_baseclus),
             ~purrr::pmap(
-                list(dmdf, baseclr, .x),
+                list(dmdf, baseclus, .x),
                 function(DAT, DATMOD, MOD){
                     clusnams <- names(DAT)[grepl("^prob", names(DAT))]
                     sapply(
@@ -993,13 +952,13 @@ AdeqIndClusDMFx <- function(X){
             )
         ),
         RES1 = purrr::map2(
-            mod_base, mod_baseclr, 
+            mod_base, mod_baseclus, 
             ~pmin(.x/.y, 1)
         ),
         RES1 = purrr::map(
             RES1, ~tibble::tibble(Cluster = names(.x), AdeqInd = .x)
         ),
-        mod_base = NULL, mod_baseclr = NULL
+        mod_base = NULL, mod_baseclus = NULL
     )
     tidyr::unnest(RES, RES1)
 }
@@ -1009,7 +968,7 @@ AdeqIndByPreDMFx <- function(X){
         X,
         sex,
         RES1 = purrr::pmap(
-            list(dmdf, mod_base, mod_baseclr),
+            list(baseclus, mod_base, mod_baseclus),
             function(DAT, MOD1, MOD2){
                 NEWDAT <- dplyr::mutate(DAT, outcome_timeyrs = 10)
                 yhat1 <- 1 - survival:::predict.coxph(MOD1, NEWDAT, type = "survival")
@@ -1055,13 +1014,13 @@ DCurvDMFx <- function(X){
         X,
         sex,
         RES1 = purrr::pmap(
-            list(dmdf, mod_base, mod_baseclr),
+            list(dmdf, mod_base, mod_baseclus),
             function(DAT, MOD1, MOD2){
                 NEWDAT <- mutate(DAT, outcome_timeyrs = 10)
                 DAT$base_y <- 1 - survival:::predict.coxph(MOD1, NEWDAT, type = "survival")
-                DAT$baseclr_y <- 1 - survival:::predict.coxph(MOD2, NEWDAT, type = "survival")
+                DAT$baseclus_y <- 1 - survival:::predict.coxph(MOD2, NEWDAT, type = "survival")
                 dca(
-                    formula = survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ base_y + baseclr_y,
+                    formula = survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ base_y + baseclus_y,
                     data = DAT,
                     thresholds = seq(0, .25, .01),
                     time = 10
@@ -1077,11 +1036,11 @@ DCurvDMbyClFx <- function(X){
         X,
         sex,
         RES1 = purrr::pmap(
-            list(dmdf, mod_base, mod_baseclr),
+            list(dmdf, mod_base, mod_baseclus),
             function(DAT, MOD1, MOD2){
                 NEWDAT <- dplyr::mutate(DAT, outcome_timeyrs = 10)
                 DAT$base_y <- 1 - survival:::predict.coxph(MOD1, NEWDAT, type = "survival")
-                DAT$baseclr_y <- 1 - survival:::predict.coxph(MOD2, NEWDAT, type = "survival")
+                DAT$baseclus_y <- 1 - survival:::predict.coxph(MOD2, NEWDAT, type = "survival")
                 RES2 <- tibble::tibble(
                     Cluster = names(DAT)[grepl("^prob", names(DAT))]
                 )
@@ -1091,7 +1050,7 @@ DCurvDMbyClFx <- function(X){
                         Cluster,
                         function(CL){
                             dca(
-                                formula = survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ base_y + baseclr_y,
+                                formula = survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ base_y + baseclus_y,
                                 data = DAT,
                                 thresholds = seq(0, .25, .01),
                                 time = 10,

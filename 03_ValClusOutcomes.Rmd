@@ -183,35 +183,6 @@ head(alldat$data[[1]])
 
 ---
 
-## Centered log-ratio transformation
-
-Since using cluster allocation probabilities in regression is problematic because all probabilities for each individual add up to 1, we will use the centered log-ratio transformation (CLR), a technique commonly used when dealing with compositional data.
-
-The clr transformation of the probability of an individual $i$ to belong to a cluster $c$ is the following:
-
-$$
-\text{CLR}(cluster_{c})_{i} = \log\left(\frac{P(cluster_{c})_{i}}{\exp\left(\frac{1}{K}\sum_{k=1}^{K}\log(P(cluster_{k})_{i})\right)}\right)
-$$
-
-The denominator in this formula is the geometric mean of the cluster allocation probabilities of individual $i$.
-
-The reason why we chose this transformation is not only because it enables us to use cluster allocation in regression analysis, but also because it helps in the interpretability of the coefficients derived from the regression. In each regression we leave out the CLR of the reference cluster, which in our case is the cluster where biomarkers change concordantly with BMI. We have label this cluster "BC". Removing this CLR and only using the CLRs of the remaining clusters means that regression coefficients can be interpreted as the expected change in the dependent variable by increasing $P(cluster_{c})$ specifically at the expense of reducing $P(cluster_{BC})$ <cite id="abe09"><a href="#zotero|10831815/UYLBIXH3">(1)</a></cite>, or in other words, the effect of deviating from the concordant cluster towards a specific discordant phenotype.
-
-To calculate the transformation:
-
-```{r}
-alldat <- clrcalc(alldat)
-print(alldat)
-```
-
-Here is how the data looks like now:
-
-```{r}
-head(alldat$data[[1]])
-```
-
----
-
 ## Descriptive statistics
 
 At this point we will recheck some of the characteristics of the clusters as we did in our previous script, weighting calculations by cluster probabilities.
@@ -330,7 +301,7 @@ head(kmestdf)
 
 ### MACE
 
-To quantify the association of clusters to MACE, as well as its potential contribution for prediction, we will compare two models. The reference model will include all predictors that are part of SCORE2, the risk stratification tool for CVD recommended by the European Society of Cardiology <cite id="pzdxs"><a href="#zotero|10831815/ZY2CL5NC">(2)</a></cite>. We will use a version of this score that has been validated in diabetic populations, and includes some additional clinically useful predictors <cite id="itp38"><a href="#zotero|10831815/FPUFQKFI">(3)</a></cite>. Additionally, for the sake of completeness, some important pre-existing conditions and pharmacological treatments, such as hypertension/antihypertensives, as well as any predictor that we had in our initial input table that are not part of SCORE2, will also be included. We will compare this reference model to one that includes also the cluster probabilities and then we'll compare the ability of these two models to predict MACE.
+To quantify the association of clusters to MACE, as well as its potential contribution for prediction, we will compare two models. The reference model will include all predictors that are part of SCORE2, the risk stratification tool for CVD recommended by the European Society of Cardiology <cite id="pzdxs"><a href="#zotero|10831815/ZY2CL5NC">(SCORE2 working group and ESC Cardiovascular risk collaboration, 2021)</a></cite>. We will use a version of this score that has been validated in diabetic populations, and includes some additional clinically useful predictors <cite id="itp38"><a href="#zotero|10831815/FPUFQKFI">(SCORE2-Diabetes Working Group and the ESC Cardiovascular Risk Collaboration, 2023)</a></cite>. Additionally, for the sake of completeness, some important pre-existing conditions and pharmacological treatments, such as hypertension/antihypertensives, as well as any predictor that we had in our initial input table that are not part of SCORE2, will also be included. We will compare this reference model to one that includes also the cluster probabilities and then we'll compare the ability of these two models to predict MACE.
 
 #### Fitting models
 
@@ -342,7 +313,7 @@ coxmodmacedf <- coxmodelsmace(alldat)
 print(coxmodmacedf)
 ```
 
-Here `score2` contains the predictors used in SCORE2-Diabetes, plus other predictors that we have in our input table and the CLR-transformed cluster allocations. The two models are contained in the last two columns. `mod_null` contains the null model, which we will use to calculate our metrics.
+Here `score2` contains the predictors used in SCORE2-Diabetes, plus other predictors that we have in our input table and cluster allocations. The two models are contained in the last two columns. `mod_null` contains the null model, which we will use to calculate our metrics.
 
 #### Coefficient estimates
 
@@ -530,6 +501,8 @@ This file should be uploaded to the respective folder of the cohort in Teams:
 
 <!-- BIBLIOGRAPHY START -->
 <div class="csl-bib-body">
+  <div class="csl-entry"><i id="zotero|10831815/ZY2CL5NC"></i>SCORE2 working group and ESC Cardiovascular risk collaboration. (2021). SCORE2 risk prediction algorithms: new models to estimate 10-year risk of cardiovascular disease in Europe. <i>European Heart Journal</i>, <i>42</i>(25), 2439–2454. https://doi.org/10.1093/eurheartj/ehab309</div>
+  <div class="csl-entry"><i id="zotero|10831815/FPUFQKFI"></i>SCORE2-Diabetes Working Group and the ESC Cardiovascular Risk Collaboration. (2023). SCORE2-Diabetes: 10-year cardiovascular risk estimation in type 2 diabetes in Europe. <i>European Heart Journal</i>, ehad260. https://doi.org/10.1093/eurheartj/ehad260</div>
 </div>
 <!-- BIBLIOGRAPHY END -->
 
