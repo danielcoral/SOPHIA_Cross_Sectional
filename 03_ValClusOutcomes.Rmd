@@ -132,7 +132,7 @@ All the columns in this table are coded 1 or 0 representing current diagnosis of
 |            |AntiHT      |Taking medication for hypertension
 |            |LipidLower  |Taking lipid-lowering medication 
 
-If any of the columns in this table are missing in your data, one option is to assume that none in your population had the disease, i.e., you should have a column with all 0.
+If any of the columns in this table are missing in your data, one option is to assume that none in your population had the disease, i.e., you should have a column with 0 for all individuals.
 
 ### Survival data
 
@@ -161,24 +161,17 @@ In case your cohort does not have survival data, then follow this guideline unti
 With the data needed in place, we can start by calculating cluster allocation probabilities given the biomarker data. For that we will first add a new column called `data` to the `validclusmod` table where we will put the biomarker data for each sex:
 
 ```{r}
-alldat <- mutate(
-    validclusmod,
-    data = map(sex, ~strat_dat[[.x]])
-)
-print(alldat)
+clusterdfs <- clusterprobcalc(ClusModDf = validclusmod, StratDat = strat_dat)
 ```
 
-Once we have this table, we can run the function to calculate cluster probabilities:
-
 ```{r}
-alldat <- clusterprobcalc(alldat)
-print(alldat)
+print(clusterdfs)
 ```
 
 Checking that the probabilities were calculated for each sex:
 
 ```{r}
-head(alldat$data[[1]])
+head(clusterdfs$data[[1]])
 ```
 
 ---
@@ -190,7 +183,7 @@ At this point we will recheck some of the characteristics of the clusters as we 
 The distribution of biomarkers per cluster:
 
 ```{r}
-markerdistribdf <- markerdistribfx(alldat)
+markerdistribdf <- markerdistribfx(clusterdfs)
 ```
 
 ```{r}
@@ -200,7 +193,7 @@ head(markerdistribdf)
 The effect of BMI on biomarkers specifically within each cluster, adjusted for age and smoking:
 
 ```{r}
-bmieffmarkerdf <- bmieffmarkerfx(alldat)
+bmieffmarkerdf <- bmieffmarkerfx(clusterdfs)
 ```
 
 ```{r}
@@ -214,23 +207,23 @@ head(bmieffmarkerdf)
 To add covariate data to the `alldat` table we will do the following:
 
 ```{r}
-alldat <- mutate(
-    alldat,
-    data = map(data, inner_join, covar_dat, by = "eid")
-)
-print(alldat)
+clusterdfs <- addcovardat(X = clusterdfs, CovarDat = covar_dat)
+```
+
+```{r}
+print(clusterdfs)
 ```
 
 Checking again if the columns were added as expected:
 
 ```{r}
-head(alldat$data[[1]])
+head(clusterdfs$data[[1]])
 ```
 
 We will first count the number of individuals with disease in each cluster. Here we will also count the number of individuals taking each class of medications in each cluster.
 
 ```{r}
-countcovarsdf <- countcovarsfx(alldat)
+countcovarsdf <- countcovarsfx(clusterdfs)
 ```
 
 ```{r}
@@ -239,29 +232,24 @@ head(countcovarsdf)
 
 We will use this table to calculate prevalences and compare prevalences across clusters.
 
-We are also interesting in looking at the following proportions in each cluster:
-
-- Proportion of individuals with hypertension receiving antihypertensives.
-- Proportion of individuals with CHD receiving lipid-lowering medication.
-- Proportion of individuals with T2D taking insulin.
-- Proportion of individuals with T2D taking insulin or any other anti-diabetic medication.
+We are also interesting in looking at the proportion of individuals receiving medications in each cluster, stratified by each condition. This is obtained with the following function:
 
 ```{r}
-countspectxdf <- countspectxfx(alldat)
+countdxmed <- countdxmedfx(clusterdfs)
 ```
 
 ```{r}
-head(countspectxdf)
+head(countdxmed)
 ```
 
 We will also formally test the association between cluster allocation and diseases using logistic regressions where the outcome is each disease and the predictors are the cluster allocations. We will have two models for each disease, one with only clusters, and a second one adjusting for medication.
 
 ```{r}
-assocdxdf <- assocdxfx(alldat)
+assocdxdf <- assocdxfx(clusterdfs)
 ```
 
 ```{r}
-head(assocdxdf)
+print(assocdxdf)
 ```
 
 ---
@@ -271,24 +259,43 @@ head(assocdxdf)
 As explained before, since we want to be careful when adding survival data for analysis, we have prepared a function separately for both outcomes, and making sure we exclude individuals who already experience the events under study:
 
 ```{r}
-alldat <- alldat %>%
-    mutate(
-        macedf = purrr::map(data, addsurvmacedat, SURVDATA = survmacedat),
-        dmdf = purrr::map(data, addsurvdmdat, SURVDATA = survdmdat)
-    )
-print(alldat)
+clustersurvdfs <- addsurvdat(X = clusterdfs, SurvMACEDf = survmacedat, SurvDMDf = survdmdat)
 ```
 
-`macedf` and `dmdf` now contain the data necessary to run survival analysis.
+```{r}
+print(clustersurvdfs)
+```
+
+`data` now contain the data necessary to run survival analysis.
 
 ---
 
-## Overall and cluster-specific Kaplan-Meier estimates
+## Rates of outcomes by cluster
 
-The first thing to do is to obtain overall and cluster-specific cumulative incidence rates using the Kaplan-Meier method:
+Similar to what was done in the cross sectiona setting, we will calculate the number of cases and the total follow-up in each cluster using the weighted approach:
 
 ```{r}
-kmestdf <- kmestfx(alldat)
+ratesbyclus <- ratesclusfx(clustersurvdfs)
+```
+
+```{r}
+head(ratesbyclus)
+```
+
+We will also do this by medication status:
+
+```{r}
+ratesbyclusmed <- ratesclusmedfx(clustersurvdfs)
+```
+
+```{r}
+head(ratesbyclusmed)
+```
+
+We will also calculate overall and cluster-specific cumulative incidence rates using the Kaplan-Meier method:
+
+```{r}
+kmestdf <- kmestfx(clustersurvdfs)
 ```
 
 ```{r}
@@ -299,39 +306,46 @@ head(kmestdf)
 
 ## Cox models
 
-### MACE
-
 To quantify the association of clusters to MACE, as well as its potential contribution for prediction, we will compare two models. The reference model will include all predictors that are part of SCORE2, the risk stratification tool for CVD recommended by the European Society of Cardiology <cite id="pzdxs"><a href="#zotero|10831815/ZY2CL5NC">(SCORE2 working group and ESC Cardiovascular risk collaboration, 2021)</a></cite>. We will use a version of this score that has been validated in diabetic populations, and includes some additional clinically useful predictors <cite id="itp38"><a href="#zotero|10831815/FPUFQKFI">(SCORE2-Diabetes Working Group and the ESC Cardiovascular Risk Collaboration, 2023)</a></cite>. Additionally, for the sake of completeness, some important pre-existing conditions and pharmacological treatments, such as hypertension/antihypertensives, as well as any predictor that we had in our initial input table that are not part of SCORE2, will also be included. We will compare this reference model to one that includes also the cluster probabilities and then we'll compare the ability of these two models to predict MACE.
+
+Similarly, for diabetes we will also fit two models, one containing all biomarkers and another one containing the biomarkers plus the cluster probabilities.
+
+The way we will introduce the cluster probabilities into the Cox models will be employing the log-ratio transformation <cite id="0lvet"><a href="#zotero|10831815/UYLBIXH3">(Coenders &#38; Pawlowsky-Glahn, 2020)</a></cite>.
 
 #### Fitting models
 
 ```{r}
-coxmodmacedf <- coxmodelsmace(alldat)
+coxmoddf <- coxmodels(clustersurvdfs)
 ```
 
 ```{r}
-print(coxmodmacedf)
+print(coxmoddf)
 ```
 
-Here `score2` contains the predictors used in SCORE2-Diabetes, plus other predictors that we have in our input table and cluster allocations. The two models are contained in the last two columns. `mod_null` contains the null model, which we will use to calculate our metrics.
+Here `mod_base` contains the baseline model, while `mod_clus` contains the baseline plus clusters model. `mod_null` contains the null model, which we will use to calculate our metrics.
 
 #### Coefficient estimates
 
+To properly calculate the effect of clusters, we need the coefficients estimated by the log-ratio models as well as their covariance, contained in the `estimates` and `varcovmat` columns. To properly calculate the expected risk for a given phenotype, we need first the means of all variables in the model, contained in the column `Means` and the parameters of the baseline hazard, contained in the `Afit` column.
+
 ```{r}
-macesurvcoefs <- macesurvcoefx(coxmodmacedf)
+survcoefs <- survcoefx(coxmoddf)
 ```
 
 ```{r}
-head(macesurvcoefs)
+print(survcoefs)
 ```
 
 #### Comparison of predictive ability
 
-We can now assess the predictive ability of each model and compare them. As the models are nested, we will use the gold-standard method, the likelihood ratio test. Given the wide use of the c-statistic, we will also use this metric. However, comparing two c-statistics is not as powerful as the likelihood ratio test.
+To assess the predictive ability of the two nested models, we will use the gold-standard method: the likelihood ratio test. Given the wide use of the c-statistic, we will also use this metric. However, comparing two c-statistics is not as powerful as the likelihood ratio test.
 
 ```{r}
-compmodmacedf <- comparemodsmace(coxmodmacedf)
-compmodmacedf
+compmoddf <- comparemods(coxmoddf)
+```
+
+```{r}
+compmoddf
 ```
 
 Some details of these columns:
@@ -340,100 +354,30 @@ Some details of these columns:
 - `AdeqInd` is the adequacy index comparing likelihood ratios of the two models. 1 minus this value represent the fraction of added information by cluster allocation.
 - `cdiffp` is the p-value of the difference between c-statistics of the two models.
 
-While p-values of both the likelihood ratio tests and the difference between C-statistics show evidence of added value, the adequacy index quantifies how much additional information is obtained when cluster allocations are added on top of common biomarkers contained the SCORE2.
+While p-values of both the likelihood ratio tests and the difference between C-statistics show evidence of added value, the adequacy index quantifies how much additional information is obtained when cluster allocations are added on top of the baseline model.
 
 #### Adequacy index by cluster
 
 Next we quantify how much is the added value of the new model to each cluster. We do this by recalculating the log likelihood of each model but this time weighting individuals by their cluster probabilities. 
 
 ```{r}
-adeqindbyclusmace <- AdeqIndClusMACEFx(coxmodmacedf)
+adeqindbyclus <- AdeqIndClusFx(coxmoddf)
 ```
 
 ```{r}
-adeqindbyclusmace
+adeqindbyclus
 ```
 
-#### Adequacy index by SCORE2 probabilities
+#### Adequacy index by MACE probability given by baseline model
 
-We will also assess the adequacy index in individuals over certain thresholds of 10-year probability of MACE calculated by SCORE2. This is to have an idea of the utility of adding cluster allocation information across the scale of SCALE2.
-
-```{r}
-adeqindbypremace <- AdeqIndByPreMACEFx(coxmodmacedf)
-```
+We are also interested in how the more complex model behaves along the scale of MACE probabilities given by the baseline model:
 
 ```{r}
-adeqindbypremace
-```
-
-#### Decision curve analysis
-
-The last step in assessing clinical utility of clustering allocations is to perform a decision curve analysis. First we will assess the overall net benefit of both models:
-
-```{r}
-dcamace <- DCurvMACEFx(coxmodmacedf)
-head(dcamace)
-```
-
-We will also calculate this by cluster:
-
-```{r}
-dcaclusmace <- DCurvMACEbyClFx(coxmodmacedf)
+adeqindbypre <- AdeqIndByPreFx(coxmoddf)
 ```
 
 ```{r}
-head(dcaclusmace)
-```
-
-### Diabetes
-
-For diabetes progression, the reference model will include fasting glucose, in addition to all the components of the metabolic syndrome that we already have included in our input table. And as before, the second model will include cluster probabilities.
-
-#### Fitting models
-
-```{r}
-coxmoddmdf <- coxmodelsdm(alldat)
-```
-
-```{r}
-print(coxmoddmdf)
-```
-
-#### Coefficient estimates
-
-```{r}
-dmsurvcoefs <- dmsurvcoefx(coxmoddmdf)
-```
-
-```{r}
-head(dmsurvcoefs)
-```
-
-#### Comparison of predictive ability
-
-```{r}
-compmoddmdf <- comparemodsdm(coxmoddmdf)
-compmoddmdf
-```
-
-#### Adequacy index by cluster
-
-```{r}
-adeqindbyclusdm <- AdeqIndClusDMFx(coxmoddmdf)
-```
-
-```{r}
-adeqindbyclusdm
-```
-
-#### Adequacy index by probabilities of base model
-
-```{r}
-adeqindbypredm <- AdeqIndByPreDMFx(coxmoddmdf)
-```
-
-```{r}
-adeqindbypredm
+head(adeqindbypre)
 ```
 
 #### Decision curve analysis
@@ -441,18 +385,33 @@ adeqindbypredm
 The last step in assessing clinical utility of clustering allocations is to perform a decision curve analysis. First we will assess the overall net benefit of both models:
 
 ```{r}
-dcadm <- DCurvDMFx(coxmoddmdf)
-head(dcadm)
+dcares <- DCurvFx(coxmoddf)
+```
+
+```{r}
+head(dcares)
 ```
 
 We will also calculate this by cluster:
 
 ```{r}
-dcaclusdm <- DCurvDMbyClFx(coxmoddmdf)
+dcaclusres <- DCurvbyClFx(coxmoddf)
 ```
 
 ```{r}
-head(dcaclusdm)
+head(dcaclusres)
+```
+
+## Interaction between clusters and medications
+
+Finally, we will assess the interaction between certain medications and clusters:
+
+```{r}
+interactmods <- interactmodfx(coxmoddf)
+```
+
+```{r}
+print(interactmods)
 ```
 
 ---
@@ -466,21 +425,18 @@ result_file2 <- list(
     MarkerDistrib = markerdistribdf,
     BMIeffOnMarker = bmieffmarkerdf,
     CountCovars = countcovarsdf,
-    CountSpecDXMeds = countspectxdf,
+    CountDXMeds = countdxmed,
     CrossSectAssoc = assocdxdf,
+    RatesByClus = ratesbyclus,
+    RatesByClusMeds = ratesbyclusmed,
     KaplanMeierDF = kmestdf,
-    MACESurvCoefs = macesurvcoefs,
-    ComparisonMACE = compmodmacedf,
-    AdeqIndByClusMACE = adeqindbyclusmace,
-    AdeqIndByPreMACE = adeqindbypremace,
-    DCAResMACE = dcamace,
-    DCAREsClusMACE = dcaclusmace,
-    DMSurvCoefs = dmsurvcoefs,
-    ComparisonDM = compmoddmdf,
-    AdeqIndByClusDM = adeqindbyclusdm,
-    AdeqIndByPreDM = adeqindbypredm,
-    DCAResDM = dcadm,
-    DCAREsClusDM = dcaclusdm
+    SurvCoefs = survcoefs,
+    Comparison = compmoddf,
+    AdeqIndByClus = adeqindbyclus,
+    AdeqIndByPre = adeqindbypre,
+    DCARes = dcares,
+    DCAClusREs = dcaclusres,
+    InteractMods = interactmods
 )
 ```
 
@@ -501,6 +457,7 @@ This file should be uploaded to the respective folder of the cohort in Teams:
 
 <!-- BIBLIOGRAPHY START -->
 <div class="csl-bib-body">
+  <div class="csl-entry"><i id="zotero|10831815/UYLBIXH3"></i>Coenders, G., &#38; Pawlowsky-Glahn, V. (2020). On interpretations of tests and effect sizes in regression models with a compositional predictor. <i>SORT-Statistics and Operations Research Transactions</i>, <i>44</i>(1), 201–220. https://doi.org/10.2436/20.8080.02.100</div>
   <div class="csl-entry"><i id="zotero|10831815/ZY2CL5NC"></i>SCORE2 working group and ESC Cardiovascular risk collaboration. (2021). SCORE2 risk prediction algorithms: new models to estimate 10-year risk of cardiovascular disease in Europe. <i>European Heart Journal</i>, <i>42</i>(25), 2439–2454. https://doi.org/10.1093/eurheartj/ehab309</div>
   <div class="csl-entry"><i id="zotero|10831815/FPUFQKFI"></i>SCORE2-Diabetes Working Group and the ESC Cardiovascular Risk Collaboration. (2023). SCORE2-Diabetes: 10-year cardiovascular risk estimation in type 2 diabetes in Europe. <i>European Heart Journal</i>, ehad260. https://doi.org/10.1093/eurheartj/ehad260</div>
 </div>
