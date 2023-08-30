@@ -241,11 +241,11 @@ countcovarsfx <- function(X){
                 )
                 dplyr::mutate(
                     RES1,
-                    Nclus = purrr::map_dbl(Cluster, ~sum(DAT[[.x]])),
+                    Nclus = purrr::map_dbl(Cluster, ~sum(DAT[[.x]], na.rm = TRUE)),
                     Ncases = purrr::map2_dbl(
                         Cluster, Covariate,
                         function(CL, CO, D){
-                            sum(D[[CO]] * D[[CL]])
+                            sum(D[[CO]] * D[[CL]], na.rm = TRUE)
                         },
                         D = DAT
                     ),
@@ -307,8 +307,7 @@ assocdxfx <- function(X){
                                 Dx_value,
                                 dplyr::across(dplyr::starts_with("prob"), \(x) log(x/probBC), .names = "alr{.col}"),
                                 alrprobBC = NULL,
-                                dplyr::across(dplyr::all_of(c(BODYSIZEINDEX, COVARIATES, BIOMARKERS))),
-                                dplyr::across(dplyr::any_of(MEDICATION))
+                                dplyr::across(dplyr::all_of(c(BODYSIZEINDEX, COVARIATES, BIOMARKERS, MEDICATION)))
                             )
                             D1 <- dplyr::select(DXD, Dx_value, dplyr::starts_with("alr"))
                             MOD1 <- glm(Dx_value ~ ., family = binomial, data = D1)
@@ -469,21 +468,19 @@ coxmodels <- function(X){
             function(DATA, SEX){
                 MODELDAT <- dplyr::transmute(
                     DATA,
+                    eid,
                     outcome_value,
                     outcome_timeyrs,
                     age,
                     smoking,
                     bmi,
                     sbp,
-                    T2D,
                     tchol = hdl + ldl + (tg/2.2),
                     hdl,
                     age_smoking = age*smoking,
                     age_sbp = age*sbp,
-                    age_t2d = age*T2D,
                     age_tchol = age*tchol,
                     age_hdl = age*hdl,
-                    t2donsetage = ifelse(T2D == 1, T2Dage, 0),
                     fg,
                     scr = scr / 88.42,
                     alpha = dplyr::case_when(SEX == "Female" ~ -0.241, SEX == "Male" ~ -0.302),
@@ -501,10 +498,17 @@ coxmodels <- function(X){
                     age_fg = age*fg,
                     age_lnegfr = age*lnegfr,
                     whr, alt, crp,
-                    HT, CKD, LiverFailure, RA, T1D,
-                    Insulin, AntiDM, AntiHT, LipidLower,
+                    dplyr::across(
+                        any_of(
+                            c("T2D", "T2Dage", "HT", "CKD", "LiverFailure", "RA", "T1D",
+                              "Insulin", "AntiDM", "AntiHT", "LipidLower")
+                        )
+                    ),
                     dplyr::across(dplyr::starts_with("prob"))
                 )
+                if(any(names(MODELDAT) == "T2D")){
+                    MODELDAT$age_t2d <- MODELDAT$age * MODELDAT$T2D
+                }
                 dplyr::select(
                     MODELDAT, 
                     -c(scr, alpha, kappa, creat_kappa, minkappa, maxkappa, 
@@ -521,9 +525,10 @@ coxmodels <- function(X){
             function(DATA){
                 dplyr::transmute(
                     DATA,
+                    eid,
                     outcome_timeyrs, outcome_value,
                     dplyr::across(
-                        dplyr::all_of(
+                        dplyr::any_of(
                             c(
                                 BIOMARKERS,
                                 BODYSIZEINDEX,
@@ -541,6 +546,30 @@ coxmodels <- function(X){
     NewX <- dplyr::bind_rows(X1, X2)
     dplyr::mutate(
         NewX,
+        survdf = purrr::map(
+            survdf, 
+            function(DATA){
+                DATA <- dplyr::mutate(
+                    DATA,
+                    dplyr::across(
+                        dplyr::everything(),
+                        function(x){ 
+                            x[is.infinite(x)] <- NaN
+                            return(x)
+                        }
+                    )
+                )
+                DATA[complete.cases(DATA),]
+            }
+        ),
+        data = purrr::map2(
+            data, survdf,
+            function(D1, D2){
+                ID <- dplyr::select(D2, eid)
+                dplyr::inner_join(ID, D1, by = "eid")
+            }
+        ),
+        survdf = purrr::map(survdf, select, -eid),
         survdf = purrr::map(
             survdf,
             function(DATA){
@@ -563,12 +592,22 @@ coxmodels <- function(X){
             survdf,
             ~{
                 MODELDAT <- dplyr::select(.x, -dplyr::starts_with("alrprob"))
+                MOD1 <- survival::coxph(survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = MODELDAT)
+                COEFS <- coef(MOD1)
+                COEFSNA <- COEFS[is.na(COEFS)]
+                MODELDAT <- dplyr::select(MODELDAT, -all_of(names(COEFSNA)))
                 survival::coxph(survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = MODELDAT)
             }
         ),
         mod_clus = purrr::map(
             survdf,
-            ~survival::coxph(survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = .x)
+            ~{
+                MOD1 <- survival::coxph(survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = .x)
+                COEFS <- coef(MOD1)
+                COEFSNA <- COEFS[is.na(COEFS)]
+                MODELDAT <- dplyr::select(.x, -all_of(names(COEFSNA)))
+                survival::coxph(survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = MODELDAT)
+            }
         )
     )
 }
@@ -684,7 +723,7 @@ AdeqIndClusFx <- function(X){
                             )
                             LL0CL <- logLik(MODNULLCL)
                             MODCL <- survival::coxph(
-                                formula = as.formula(MOD), 
+                                formula = as.formula(MOD),
                                 data = MODDAT,
                                 weights = PROB,
                                 robust = FALSE,
