@@ -305,6 +305,8 @@ assocdxfx <- function(X){
                             DXD <- dplyr::transmute(
                                 DXD,
                                 Dx_value,
+                                dplyr::across(dplyr::starts_with("prob"), \(x) ifelse(x < 1e-15, 1e-15, x)),
+                                dplyr::across(dplyr::starts_with("prob"), \(x) ifelse(x > (1 - 1e-15), (1 - 1e-15), x)),
                                 dplyr::across(dplyr::starts_with("prob"), \(x) log(x/probBC), .names = "alr{.col}"),
                                 alrprobBC = NULL,
                                 dplyr::across(dplyr::all_of(c(BODYSIZEINDEX, COVARIATES, BIOMARKERS, MEDICATION)))
@@ -575,6 +577,8 @@ coxmodels <- function(X){
             function(DATA){
                 dplyr::mutate(
                     DATA,
+                    dplyr::across(dplyr::starts_with("prob"), \(x) ifelse(x < 1e-15, 1e-15, x)),
+                    dplyr::across(dplyr::starts_with("prob"), \(x) ifelse(x > (1 - 1e-15), (1 - 1e-15), x)),
                     dplyr::across(dplyr::starts_with("prob"), \(P) log(P/probBC), .names = "alr{.col}"),
                     alrprobBC = NULL,
                     dplyr::across(dplyr::starts_with("prob"), \(P) NULL)
@@ -957,6 +961,8 @@ interactmodfx <- function(X){
                     outcome_timeyrs, outcome_value,
                     dplyr::across(all_of(c(BODYSIZEINDEX, COVARIATES, BIOMARKERS))),
                     dplyr::across(any_of(MEDICATION)),
+                    dplyr::across(dplyr::starts_with("prob"), \(x) ifelse(x < 1e-15, 1e-15, x)),
+                    dplyr::across(dplyr::starts_with("prob"), \(x) ifelse(x > (1 - 1e-15), (1 - 1e-15), x)),
                     dplyr::across(dplyr::starts_with("prob"), \(P) log(P/probBC), .names = "alr{.col}"),
                     alrprobBC = NULL,
                     dplyr::across(dplyr::starts_with("prob"), \(P) NULL)
