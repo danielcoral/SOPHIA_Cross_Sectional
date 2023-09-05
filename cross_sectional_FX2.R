@@ -422,6 +422,11 @@ kmestfx <- function(X){
         data = purrr::map(
             data,
             function(DAT){
+                DAT <- dplyr::mutate(
+                    DAT,
+                    dplyr::across(dplyr::starts_with("prob"), \(x) ifelse(x < 1e-15, 1e-15, x)),
+                    dplyr::across(dplyr::starts_with("prob"), \(x) ifelse(x > (1 - 1e-15), (1 - 1e-15), x))
+                )
                 RES1 <- survival:::survfit.formula(
                     survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ 1, 
                     data = DAT
