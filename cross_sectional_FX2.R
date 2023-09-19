@@ -431,7 +431,7 @@ kmestfx <- function(X){
                     survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ 1, 
                     data = DAT
                 )
-                RES1 <- survival:::summary.survfit(RES1, times = 10)
+                RES1 <- survival:::summary.survfit(RES1, times = 10, extend = TRUE)
                 RES1 <- RES1[c("surv", "upper", "lower")]
                 RES1 <- 1 - data.frame(RES1)
                 colnames(RES1) <- c("risk", "lower", "upper")
@@ -723,6 +723,8 @@ AdeqIndClusFx <- function(X){
                     sapply(
                         DAT[CLUS],
                         function(PROBCL){
+                            PROBCL <- ifelse(PROBCL < 1e-15, 1e-15, PROBCL)
+                            PROBCL <- ifelse(PROBCL > 1 - 1e-15, 1 - 1e-15, PROBCL)
                             MODDAT$PROB <- PROBCL
                             MODNULLCL <- survival::coxph(
                                 survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ 1, 
