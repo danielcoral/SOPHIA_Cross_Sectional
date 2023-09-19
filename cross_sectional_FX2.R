@@ -416,7 +416,7 @@ ratesclusmedfx <- function(X){
 }
 
 # Kaplan-Meier estimates
-kmestfx <- function(X){
+kmestfx <- function(X, times = 10){
     RES <- dplyr::mutate(
         X,
         data = purrr::map(
@@ -431,7 +431,7 @@ kmestfx <- function(X){
                     survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ 1, 
                     data = DAT
                 )
-                RES1 <- survival:::summary.survfit(RES1, times = 10, extend = TRUE)
+                RES1 <- survival:::summary.survfit(RES1, times = times)
                 RES1 <- RES1[c("surv", "upper", "lower")]
                 RES1 <- 1 - data.frame(RES1)
                 colnames(RES1) <- c("risk", "lower", "upper")
@@ -895,7 +895,7 @@ dca <- function(formula, data, thresholds, time, weights = rep(1, nrow(data)), r
 }
 
 # DCA
-DCurvFx <- function(X){
+DCurvFx <- function(X, time = 10){
     RES <- dplyr::transmute(
         X,
         sex, outcome,
@@ -910,7 +910,7 @@ DCurvFx <- function(X){
                     base + clus,
                     data = DAT,
                     thresholds = seq(0, .25, .01),
-                    time = 10
+                    time = time
                 )
             }
         )
@@ -919,7 +919,7 @@ DCurvFx <- function(X){
 }
 
 # DCA by cluster
-DCurvbyClFx <- function(X){
+DCurvbyClFx <- function(X, time = 10){
     RES <- dplyr::transmute(
         X,
         sex, outcome,
@@ -942,7 +942,7 @@ DCurvbyClFx <- function(X){
                                 base + clus,
                                 data = DATMOD,
                                 thresholds = seq(0, .25, .01),
-                                time = 10,
+                                time = time,
                                 weights = DAT[[CL]]
                             )
                         }
