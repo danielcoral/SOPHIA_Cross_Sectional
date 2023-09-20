@@ -148,7 +148,7 @@ survdmdat <- read_tsv("../data/survdmdat.tsv", show_col_types = FALSE)
 head(survdmdat)
 ```
 
-These two tables include individuals followed ***up to 10 years***. This means that any outcome after 10 years is censored. `outcome_value` is 1 if the person experienced the event during the follow-up time and 0 if not. `outcome_timeyrs` is the time of follow-up in years, up to the first event or up to 10 years. 
+These two tables should include individuals followed ***up to 10 years***. Any outcome after 10 years should be censored. `outcome_value` is 1 if the person experienced the event during the follow-up time and 0 if not. `outcome_timeyrs` is the time of follow-up in years, up to the first event or up to 10 years. 
 
 It is important that these tables ***do not include*** individuals who already experience the events we will study. In any case, we will make sure of this in the next step, when we combine all the data. For example, any individual in the `survmacedat` table with a value of 1 in the columns `CHD`, `Stroke` or `PAD` of the `covar_tab` table, will be excluded from the analysis.
 
@@ -270,6 +270,26 @@ print(clustersurvdfs)
 
 ---
 
+## Creating follow-up subsets
+
+In each subset the follow-up will be censored at a specific point in time:
+
+```{r}
+clustersurvdfs <- futsubsetsfx(clustersurvdfs)
+print(clustersurvdfs)
+```
+
+## Summary of survival data
+
+We need information on the data available for survival analysis. Here is the function:
+
+```{r}
+survsum <- survsumfx(clustersurvdfs)
+survsum
+```
+
+---
+
 ## Rates of outcomes by cluster
 
 Similar to what was done in the cross sectiona setting, we will calculate the number of cases and the total follow-up in each cluster using the weighted approach:
@@ -290,16 +310,6 @@ ratesbyclusmed <- ratesclusmedfx(clustersurvdfs)
 
 ```{r}
 head(ratesbyclusmed)
-```
-
-We will also calculate overall and cluster-specific cumulative incidence rates using the Kaplan-Meier method:
-
-```{r}
-kmestdf <- kmestfx(clustersurvdfs)
-```
-
-```{r}
-head(kmestdf)
 ```
 
 ---
@@ -427,9 +437,9 @@ result_file2 <- list(
     CountCovars = countcovarsdf,
     CountDXMeds = countdxmed,
     CrossSectAssoc = assocdxdf,
+    SurvSum = survsum,
     RatesByClus = ratesbyclus,
     RatesByClusMeds = ratesbyclusmed,
-    KaplanMeierDF = kmestdf,
     SurvCoefs = survcoefs,
     Comparison = compmoddf,
     AdeqIndByClus = adeqindbyclus,

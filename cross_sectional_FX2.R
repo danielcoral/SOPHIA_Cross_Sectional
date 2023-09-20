@@ -347,11 +347,58 @@ addsurvdat <- function(X, SurvMACEDf, SurvDMDf){
         data = purrr::map(data, dplyr::inner_join, SurvDMDf, by = "eid"),
         data = purrr::map(data, filter, T2D == 0, T1D == 0, Insulin == 0, AntiDM == 0)
     )
-    RES <- bind_rows(X1, X2)
+    RES <- dplyr::bind_rows(X1, X2)
     dplyr::mutate(
         RES,
         data = purrr::map(data, dplyr::select, -dplyr::where(\(x) all(x == 0)))
     )
+}
+
+# Follow-up subsets
+futsubsetsfx <- function(X){
+    RES <- tidyr::expand_grid(
+        X,
+        fut = c(5, 10)
+    )
+    RES <- dplyr::mutate(
+        RES,
+        data = purrr::map2(
+            data, fut,
+            function(DAT, FUT){
+                dplyr::mutate(
+                    DAT,
+                    outcome_value = outcome_value * (outcome_timeyrs <= FUT),
+                    outcome_timeyrs = pmin(outcome_timeyrs, FUT)
+                )
+            }
+        ),
+        maxfut = map_dbl(data, ~max(.x$outcome_timeyrs)),
+        valid = maxfut > (fut - 1)
+    )
+    RES <- dplyr::filter(RES, valid)
+    dplyr::select(RES, -c(valid, maxfut))
+}
+
+# Summary function
+survsumfx <- function(X){
+   RES <- dplyr::transmute(
+       X,
+       sex, outcome, fut,
+       data = purrr::map(
+           data,
+           function(DAT){
+               data.frame(
+                   N = nrow(DAT),
+                   Ncases = sum(DAT$outcome_value, na.rm = TRUE),
+                   TPT = sum(DAT$outcome_timeyrs, na.rm = TRUE),
+                   t(setNames(quantile(DAT$outcome_timeyrs, 
+                                       probs = c(.025, .25, .5, .75, .975)),
+                              paste0("timeq", c(2.5, 25, 50, 75, 97.5))))
+                )
+            }
+        )
+    )
+    unnest(RES, data)
 }
 
 # Rates of outcome by cluster
@@ -409,56 +456,6 @@ ratesclusmedfx <- function(X){
                     TPT = sum(Med_value * outcome_timeyrs * prob),
                     .groups = "drop"
                 )
-            }
-        )
-    )
-    tidyr::unnest(RES, data)
-}
-
-# Kaplan-Meier estimates
-kmestfx <- function(X, times = 10){
-    RES <- dplyr::mutate(
-        X,
-        data = purrr::map(
-            data,
-            function(DAT){
-                DAT <- dplyr::mutate(
-                    DAT,
-                    dplyr::across(dplyr::starts_with("prob"), \(x) ifelse(x < 1e-15, 1e-15, x)),
-                    dplyr::across(dplyr::starts_with("prob"), \(x) ifelse(x > (1 - 1e-15), (1 - 1e-15), x))
-                )
-                RES1 <- survival:::survfit.formula(
-                    survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ 1, 
-                    data = DAT
-                )
-                RES1 <- survival:::summary.survfit(RES1, times = times)
-                RES1 <- RES1[c("surv", "upper", "lower")]
-                RES1 <- 1 - data.frame(RES1)
-                colnames(RES1) <- c("risk", "lower", "upper")
-                RES1 <- cbind(Cluster = "Overall", RES1)
-                RES2 <- tibble::tibble(Cluster = names(DAT)[grepl("^prob", names(DAT))])
-                RES2 <- dplyr::mutate(
-                    RES2,
-                    RES3 = purrr::map(
-                        Cluster,
-                        function(CL, D){
-                            RES4 <- survival:::survfit.formula(
-                                survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ 1, 
-                                data = D,
-                                weights = get(CL),
-                                robust = FALSE
-                            )
-                            RES4 <- survival:::summary.survfit(RES4, times = 10)
-                            RES4 <- RES4[c("surv", "upper", "lower")]
-                            RES4 <- 1 - data.frame(RES4)
-                            colnames(RES4) <- c("risk", "lower", "upper")
-                            RES4
-                        },
-                        D = DAT
-                    )
-                )
-                RES2 <- tidyr::unnest(RES2, RES3)
-                dplyr::bind_rows(RES1, RES2)
             }
         )
     )
@@ -623,7 +620,7 @@ coxmodels <- function(X){
 
 # Extracting coefficients of survival model
 survcoefx <- function(X){
-    RES <- dplyr::select(X, sex, outcome, starts_with("mod_"))
+    RES <- dplyr::select(X, sex, outcome, fut, starts_with("mod_"))
     RES <- tidyr::pivot_longer(
         RES, 
         starts_with("mod_"), 
@@ -683,7 +680,7 @@ PredCumHaz <- function(AFit, Means, Coefs, VCoVMat, NewX){
 comparemods <- function(X){
     dplyr::transmute(
         X,
-        sex, outcome,
+        sex, outcome, fut,
         LL0 = purrr::map_dbl(NullMod, logLik),
         LLBase = purrr::map_dbl(mod_base, logLik),
         NVBase = purrr::map_dbl(mod_base, \(MOD) sum(!is.na(MOD$coefficients))),
@@ -713,7 +710,7 @@ comparemods <- function(X){
 AdeqIndClusFx <- function(X){
     RES <- dplyr::transmute(
         X,
-        sex, outcome,
+        sex, outcome, fut,
         Cluster = purrr::map(data, ~names(.x)[grepl("^prob", names(.x))]),
         dplyr::across(
             c(mod_base, mod_clus),
@@ -763,41 +760,48 @@ AdeqIndClusFx <- function(X){
 AdeqIndByPreFx <- function(X){
     RES <- dplyr::transmute(
         X,
-        sex, outcome,
+        sex, outcome, fut,
         RES1 = purrr::pmap(
-            list(survdf, mod_base, mod_clus),
-            function(DAT, MOD1, MOD2){
-                NEWDAT <- dplyr::mutate(DAT, outcome_timeyrs = 10)
+            list(survdf, mod_base, mod_clus, fut),
+            function(DAT, MOD1, MOD2, FUT){
+                NEWDAT <- dplyr::mutate(DAT, outcome_timeyrs = FUT)
                 yhat1 <- 1 - survival:::predict.coxph(MOD1, NEWDAT, type = "survival")
                 RES2 <- purrr::map(
                     seq(0, .25, .01),
                     function(thresh){
                         TDAT <- DAT[yhat1 >= thresh,]
-                        MODNULL <- survival::coxph(
-                            formula = survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ 1,
-                            data = TDAT
-                        )
-                        LL0 <- as.numeric(logLik(MODNULL))
-                        NEWMOD1 <- survival::coxph(
-                            formula = as.formula(MOD1),
-                            data = TDAT,
-                            init = coef(MOD1), 
-                            control = survival::coxph.control(iter.max = 0)
-                        )
-                        LLMOD1 <- as.numeric(logLik(NEWMOD1))
-                        LRMOD1 <- LLMOD1 - LL0
-                        NEWMOD2 <- survival::coxph(
-                            formula = as.formula(MOD2),
-                            data = TDAT,
-                            init = coef(MOD2), 
-                            control = survival::coxph.control(iter.max = 0)
-                        )
-                        LLMOD2 <- as.numeric(logLik(NEWMOD2))
-                        LRMOD2 <- LLMOD2 - LL0
-                        tibble::tibble(
-                            threshold = thresh, 
-                            AdeqInd = pmin(1, LRMOD1/LRMOD2),
-                        )
+                        if(nrow(TDAT) < 50){
+                            tibble::tibble(
+                                threshold = thresh, 
+                                AdeqInd = NaN,
+                            )
+                        } else {
+                            MODNULL <- survival::coxph(
+                                formula = survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ 1,
+                                data = TDAT
+                            )
+                            LL0 <- as.numeric(logLik(MODNULL))
+                            NEWMOD1 <- survival::coxph(
+                                formula = as.formula(MOD1),
+                                data = TDAT,
+                                init = coef(MOD1), 
+                                control = survival::coxph.control(iter.max = 0)
+                            )
+                            LLMOD1 <- as.numeric(logLik(NEWMOD1))
+                            LRMOD1 <- LLMOD1 - LL0
+                            NEWMOD2 <- survival::coxph(
+                                formula = as.formula(MOD2),
+                                data = TDAT,
+                                init = coef(MOD2), 
+                                control = survival::coxph.control(iter.max = 0)
+                            )
+                            LLMOD2 <- as.numeric(logLik(NEWMOD2))
+                            LRMOD2 <- LLMOD2 - LL0
+                            tibble::tibble(
+                                threshold = thresh, 
+                                AdeqInd = pmin(1, LRMOD1/LRMOD2),
+                            )
+                        }
                     }
                 )
                 bind_rows(RES2)
@@ -895,14 +899,14 @@ dca <- function(formula, data, thresholds, time, weights = rep(1, nrow(data)), r
 }
 
 # DCA
-DCurvFx <- function(X, time = 10){
+DCurvFx <- function(X){
     RES <- dplyr::transmute(
         X,
-        sex, outcome,
+        sex, outcome, fut,
         RES1 = purrr::pmap(
-            list(survdf, mod_base, mod_clus),
-            function(DAT, MOD1, MOD2){
-                NEWDAT <- mutate(DAT, outcome_timeyrs = 10)
+            list(survdf, mod_base, mod_clus, fut),
+            function(DAT, MOD1, MOD2, FUT){
+                NEWDAT <- mutate(DAT, outcome_timeyrs = FUT)
                 DAT$base <- 1 - survival:::predict.coxph(MOD1, NEWDAT, type = "survival")
                 DAT$clus <- 1 - survival:::predict.coxph(MOD2, NEWDAT, type = "survival")
                 dca(
@@ -910,7 +914,7 @@ DCurvFx <- function(X, time = 10){
                     base + clus,
                     data = DAT,
                     thresholds = seq(0, .25, .01),
-                    time = time
+                    time = FUT
                 )
             }
         )
@@ -919,14 +923,14 @@ DCurvFx <- function(X, time = 10){
 }
 
 # DCA by cluster
-DCurvbyClFx <- function(X, time = 10){
+DCurvbyClFx <- function(X){
     RES <- dplyr::transmute(
         X,
-        sex, outcome,
+        sex, outcome, fut,
         RES1 = purrr::pmap(
-            list(data, survdf, mod_base, mod_clus),
-            function(DAT, DATMOD, MOD1, MOD2){
-                NEWDAT <- dplyr::mutate(DATMOD, outcome_timeyrs = 10)
+            list(data, survdf, mod_base, mod_clus, fut),
+            function(DAT, DATMOD, MOD1, MOD2, FUT){
+                NEWDAT <- dplyr::mutate(DATMOD, outcome_timeyrs = FUT)
                 DATMOD$base <- 1 - survival:::predict.coxph(MOD1, NEWDAT, type = "survival")
                 DATMOD$clus <- 1 - survival:::predict.coxph(MOD2, NEWDAT, type = "survival")
                 RES2 <- tibble::tibble(
@@ -942,7 +946,7 @@ DCurvbyClFx <- function(X, time = 10){
                                 base + clus,
                                 data = DATMOD,
                                 thresholds = seq(0, .25, .01),
-                                time = time,
+                                time = FUT,
                                 weights = DAT[[CL]]
                             )
                         }
@@ -959,7 +963,7 @@ DCurvbyClFx <- function(X, time = 10){
 interactmodfx <- function(X){
     RES <- dplyr::transmute(
         X,
-        sex, outcome,
+        sex, outcome, fut,
         intmod = map(
             data,
             function(DAT){

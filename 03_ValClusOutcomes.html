@@ -14701,7 +14701,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[2]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[61]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="nf">source</span><span class="p">(</span><span class="s">&quot;cross_sectional_FX2.R&quot;</span><span class="p">)</span>
@@ -15470,7 +15470,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<p>These two tables include individuals followed <strong><em>up to 10 years</em></strong>. This means that any outcome after 10 years is censored. <code>outcome_value</code> is 1 if the person experienced the event during the follow-up time and 0 if not. <code>outcome_timeyrs</code> is the time of follow-up in years, up to the first event or up to 10 years.</p>
+<p>These two tables should include individuals followed <strong><em>up to 10 years</em></strong>. Any outcome after 10 years should be censored. <code>outcome_value</code> is 1 if the person experienced the event during the follow-up time and 0 if not. <code>outcome_timeyrs</code> is the time of follow-up in years, up to the first event or up to 10 years.</p>
 <p>It is important that these tables <strong><em>do not include</em></strong> individuals who already experience the events we will study. In any case, we will make sure of this in the next step, when we combine all the data. For example, any individual in the <code>survmacedat</code> table with a value of 1 in the columns <code>CHD</code>, <code>Stroke</code> or <code>PAD</code> of the <code>covar_tab</code> table, will be excluded from the analysis.</p>
 
 </div>
@@ -16251,15 +16251,15 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
    sex    Dx_name model        estimates  varcovmat      
    <span class="ansi-black-intense-fg">&lt;chr&gt;</span>  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>   <span class="ansi-black-intense-fg">&lt;chr&gt;</span>        <span class="ansi-black-intense-fg">&lt;list&gt;</span>     <span class="ansi-black-intense-fg">&lt;list&gt;</span>         
 <span class="ansi-black-intense-fg"> 1</span> Female HT      OnlyClusters <span class="ansi-black-intense-fg">&lt;dbl [6]&gt;</span>  <span class="ansi-black-intense-fg">&lt;dbl [6 x 6]&gt;</span>  
-<span class="ansi-black-intense-fg"> 2</span> Female HT      FullModel    <span class="ansi-black-intense-fg">&lt;dbl [23]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [23 x 23]&gt;</span>
+<span class="ansi-black-intense-fg"> 2</span> Female HT      FullModel    <span class="ansi-black-intense-fg">&lt;dbl [29]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [29 x 29]&gt;</span>
 <span class="ansi-black-intense-fg"> 3</span> Female CHD     OnlyClusters <span class="ansi-black-intense-fg">&lt;dbl [6]&gt;</span>  <span class="ansi-black-intense-fg">&lt;dbl [6 x 6]&gt;</span>  
-<span class="ansi-black-intense-fg"> 4</span> Female CHD     FullModel    <span class="ansi-black-intense-fg">&lt;dbl [23]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [23 x 23]&gt;</span>
+<span class="ansi-black-intense-fg"> 4</span> Female CHD     FullModel    <span class="ansi-black-intense-fg">&lt;dbl [29]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [29 x 29]&gt;</span>
 <span class="ansi-black-intense-fg"> 5</span> Female Stroke  OnlyClusters <span class="ansi-black-intense-fg">&lt;dbl [6]&gt;</span>  <span class="ansi-black-intense-fg">&lt;dbl [6 x 6]&gt;</span>  
-<span class="ansi-black-intense-fg"> 6</span> Female Stroke  FullModel    <span class="ansi-black-intense-fg">&lt;dbl [23]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [23 x 23]&gt;</span>
+<span class="ansi-black-intense-fg"> 6</span> Female Stroke  FullModel    <span class="ansi-black-intense-fg">&lt;dbl [29]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [29 x 29]&gt;</span>
 <span class="ansi-black-intense-fg"> 7</span> Female PAD     OnlyClusters <span class="ansi-black-intense-fg">&lt;dbl [6]&gt;</span>  <span class="ansi-black-intense-fg">&lt;dbl [6 x 6]&gt;</span>  
-<span class="ansi-black-intense-fg"> 8</span> Female PAD     FullModel    <span class="ansi-black-intense-fg">&lt;dbl [23]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [23 x 23]&gt;</span>
+<span class="ansi-black-intense-fg"> 8</span> Female PAD     FullModel    <span class="ansi-black-intense-fg">&lt;dbl [29]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [29 x 29]&gt;</span>
 <span class="ansi-black-intense-fg"> 9</span> Female CKD     OnlyClusters <span class="ansi-black-intense-fg">&lt;dbl [6]&gt;</span>  <span class="ansi-black-intense-fg">&lt;dbl [6 x 6]&gt;</span>  
-<span class="ansi-black-intense-fg">10</span> Female CKD     FullModel    <span class="ansi-black-intense-fg">&lt;dbl [23]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [23 x 23]&gt;</span>
+<span class="ansi-black-intense-fg">10</span> Female CKD     FullModel    <span class="ansi-black-intense-fg">&lt;dbl [29]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [29 x 29]&gt;</span>
 <span class="ansi-black-intense-fg"># i 26 more rows</span>
 </pre>
 </div>
@@ -16309,7 +16309,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[25]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[46]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">clustersurvdfs</span> <span class="o">&lt;-</span> <span class="nf">addsurvdat</span><span class="p">(</span><span class="n">X</span> <span class="o">=</span> <span class="n">clusterdfs</span><span class="p">,</span> <span class="n">SurvMACEDf</span> <span class="o">=</span> <span class="n">survmacedat</span><span class="p">,</span> <span class="n">SurvDMDf</span> <span class="o">=</span> <span class="n">survdmdat</span><span class="p">)</span>
@@ -16325,7 +16325,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[26]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[47]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="nf">print</span><span class="p">(</span><span class="n">clustersurvdfs</span><span class="p">)</span>
@@ -16396,6 +16396,172 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h2 id="Creating-follow-up-subsets">Creating follow-up subsets<a class="anchor-link" href="#Creating-follow-up-subsets">&#182;</a></h2>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>In each subset the follow-up will be censored at a specific point in time:</p>
+
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell   ">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[49]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-r"><pre><span></span><span class="n">clustersurvdfs</span> <span class="o">&lt;-</span> <span class="nf">futsubsetsfx</span><span class="p">(</span><span class="n">clustersurvdfs</span><span class="p">)</span>
+<span class="nf">print</span><span class="p">(</span><span class="n">clustersurvdfs</span><span class="p">)</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
+</div>
+
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+
+
+<div class="jp-OutputArea jp-Cell-outputArea">
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre><span class="ansi-black-intense-fg"># A tibble: 8 x 4</span>
+  sex    outcome data                     fut
+  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>   <span class="ansi-black-intense-fg">&lt;list&gt;</span>                 <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>
+<span class="ansi-black-intense-fg">1</span> Female MACE    <span class="ansi-black-intense-fg">&lt;tibble [73,378 x 34]&gt;</span>     5
+<span class="ansi-black-intense-fg">2</span> Female MACE    <span class="ansi-black-intense-fg">&lt;tibble [73,378 x 34]&gt;</span>    10
+<span class="ansi-black-intense-fg">3</span> Male   MACE    <span class="ansi-black-intense-fg">&lt;tibble [60,348 x 33]&gt;</span>     5
+<span class="ansi-black-intense-fg">4</span> Male   MACE    <span class="ansi-black-intense-fg">&lt;tibble [60,348 x 33]&gt;</span>    10
+<span class="ansi-black-intense-fg">5</span> Female DM      <span class="ansi-black-intense-fg">&lt;tibble [34,581 x 32]&gt;</span>     5
+<span class="ansi-black-intense-fg">6</span> Female DM      <span class="ansi-black-intense-fg">&lt;tibble [34,581 x 32]&gt;</span>    10
+<span class="ansi-black-intense-fg">7</span> Male   DM      <span class="ansi-black-intense-fg">&lt;tibble [29,006 x 31]&gt;</span>     5
+<span class="ansi-black-intense-fg">8</span> Male   DM      <span class="ansi-black-intense-fg">&lt;tibble [29,006 x 31]&gt;</span>    10
+</pre>
+</div>
+</div>
+
+</div>
+
+</div>
+
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<h2 id="Summary-of-survival-data">Summary of survival data<a class="anchor-link" href="#Summary-of-survival-data">&#182;</a></h2>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<p>We need information on the data available for survival analysis. Here is the function:</p>
+
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell   ">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[52]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-r"><pre><span></span><span class="n">survsum</span> <span class="o">&lt;-</span> <span class="nf">survsumfx</span><span class="p">(</span><span class="n">clustersurvdfs</span><span class="p">)</span>
+<span class="n">survsum</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
+</div>
+
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+
+
+<div class="jp-OutputArea jp-Cell-outputArea">
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+
+<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output " data-mime-type="text/html">
+<table class="dataframe">
+<caption>A tibble: 8 × 11</caption>
+<thead>
+	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>fut</th><th scope=col>N</th><th scope=col>Ncases</th><th scope=col>TPT</th><th scope=col>timeq2.5</th><th scope=col>timeq25</th><th scope=col>timeq50</th><th scope=col>timeq75</th><th scope=col>timeq97.5</th></tr>
+	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;int&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
+</thead>
+<tbody>
+	<tr><td>Female</td><td>MACE</td><td> 5</td><td>73378</td><td>1349</td><td>363900.5</td><td>5.000000</td><td>5.000000</td><td>5.000000</td><td>5.000000</td><td> 5</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>10</td><td>73378</td><td>2926</td><td>644648.0</td><td>6.366667</td><td>8.104038</td><td>8.947296</td><td>9.607118</td><td>10</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td> 5</td><td>60348</td><td>2506</td><td>295798.6</td><td>3.159480</td><td>5.000000</td><td>5.000000</td><td>5.000000</td><td> 5</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td>10</td><td>60348</td><td>4927</td><td>519200.7</td><td>3.159480</td><td>8.027379</td><td>8.895277</td><td>9.593429</td><td>10</td></tr>
+	<tr><td>Female</td><td>DM  </td><td> 5</td><td>34581</td><td> 665</td><td>171313.8</td><td>5.000000</td><td>5.000000</td><td>5.000000</td><td>5.000000</td><td> 5</td></tr>
+	<tr><td>Female</td><td>DM  </td><td>10</td><td>34581</td><td>1159</td><td>303403.6</td><td>6.151951</td><td>8.202601</td><td>8.870637</td><td>9.604381</td><td>10</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td> 5</td><td>29006</td><td> 938</td><td>142786.5</td><td>3.909993</td><td>5.000000</td><td>5.000000</td><td>5.000000</td><td> 5</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td>10</td><td>29006</td><td>1578</td><td>251704.8</td><td>3.909993</td><td>8.109514</td><td>8.851472</td><td>9.587953</td><td>10</td></tr>
+</tbody>
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
+<hr>
+
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
 <h2 id="Rates-of-outcomes-by-cluster">Rates of outcomes by cluster<a class="anchor-link" href="#Rates-of-outcomes-by-cluster">&#182;</a></h2>
 </div>
 </div>
@@ -16417,7 +16583,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[27]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[53]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">ratesbyclus</span> <span class="o">&lt;-</span> <span class="nf">ratesclusfx</span><span class="p">(</span><span class="n">clustersurvdfs</span><span class="p">)</span>
@@ -16433,7 +16599,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[28]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[54]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="nf">head</span><span class="p">(</span><span class="n">ratesbyclus</span><span class="p">)</span>
@@ -16460,18 +16626,18 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output " data-mime-type="text/html">
 <table class="dataframe">
-<caption>A tibble: 6 × 5</caption>
+<caption>A tibble: 6 × 6</caption>
 <thead>
-	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>Cluster</th><th scope=col>Ncases</th><th scope=col>TPT</th></tr>
-	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
+	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>Cluster</th><th scope=col>Ncases</th><th scope=col>TPT</th><th scope=col>fut</th></tr>
+	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>2093.9159</td><td>492558.11</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDAL</td><td> 200.6431</td><td> 33353.95</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDHG</td><td>  95.5165</td><td> 11139.54</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDHT</td><td> 285.8513</td><td> 64238.47</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDIS</td><td> 143.3605</td><td> 22584.02</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDLT</td><td> 107.7127</td><td> 23773.73</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>956.80374</td><td>276917.20</td><td>5</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probDAL</td><td> 92.19911</td><td> 18711.26</td><td>5</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probDHG</td><td> 50.83606</td><td>  6323.39</td><td>5</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probDHT</td><td>130.33750</td><td> 35971.92</td><td>5</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probDIS</td><td> 72.22930</td><td> 12668.50</td><td>5</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probDLT</td><td> 46.59429</td><td> 13308.20</td><td>5</td></tr>
 </tbody>
 </table>
 
@@ -16500,7 +16666,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[29]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[55]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">ratesbyclusmed</span> <span class="o">&lt;-</span> <span class="nf">ratesclusmedfx</span><span class="p">(</span><span class="n">clustersurvdfs</span><span class="p">)</span>
@@ -16516,7 +16682,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[30]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[56]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="nf">head</span><span class="p">(</span><span class="n">ratesbyclusmed</span><span class="p">)</span>
@@ -16543,101 +16709,18 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output " data-mime-type="text/html">
 <table class="dataframe">
-<caption>A tibble: 6 × 6</caption>
+<caption>A tibble: 6 × 7</caption>
 <thead>
-	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>Cluster</th><th scope=col>Med_name</th><th scope=col>Ncases</th><th scope=col>TPT</th></tr>
-	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
+	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>Cluster</th><th scope=col>Med_name</th><th scope=col>Ncases</th><th scope=col>TPT</th><th scope=col>fut</th></tr>
+	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>AntiDM    </td><td>  67.829857</td><td>  4966.2019</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>AntiHT    </td><td> 756.785907</td><td> 85741.8406</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>Insulin   </td><td>  16.833763</td><td>  1097.1488</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>LipidLower</td><td> 524.094312</td><td> 69458.7921</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>NoMed     </td><td>1123.837308</td><td>368913.8639</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDAL</td><td>AntiDM    </td><td>   6.634919</td><td>   339.1024</td></tr>
-</tbody>
-</table>
-
-</div>
-
-</div>
-
-</div>
-
-</div>
-
-</div>
-<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
-<div class="jp-Cell-inputWrapper">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
-</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput " data-mime-type="text/markdown">
-<p>We will also calculate overall and cluster-specific cumulative incidence rates using the Kaplan-Meier method:</p>
-
-</div>
-</div>
-</div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
-<div class="jp-Cell-inputWrapper">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[31]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-     <div class="CodeMirror cm-s-jupyter">
-<div class=" highlight hl-r"><pre><span></span><span class="n">kmestdf</span> <span class="o">&lt;-</span> <span class="nf">kmestfx</span><span class="p">(</span><span class="n">clustersurvdfs</span><span class="p">)</span>
-</pre></div>
-
-     </div>
-</div>
-</div>
-</div>
-
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell   ">
-<div class="jp-Cell-inputWrapper">
-<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
-</div>
-<div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[32]:</div>
-<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
-     <div class="CodeMirror cm-s-jupyter">
-<div class=" highlight hl-r"><pre><span></span><span class="nf">head</span><span class="p">(</span><span class="n">kmestdf</span><span class="p">)</span>
-</pre></div>
-
-     </div>
-</div>
-</div>
-</div>
-
-<div class="jp-Cell-outputWrapper">
-<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
-</div>
-
-
-<div class="jp-OutputArea jp-Cell-outputArea">
-
-<div class="jp-OutputArea-child">
-
-    
-    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-
-
-
-<div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output " data-mime-type="text/html">
-<table class="dataframe">
-<caption>A tibble: 6 × 6</caption>
-<thead>
-	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>Cluster</th><th scope=col>risk</th><th scope=col>lower</th><th scope=col>upper</th></tr>
-	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
-</thead>
-<tbody>
-	<tr><td>Female</td><td>MACE</td><td>Overall</td><td>0.04651655</td><td>0.04468811</td><td>0.04834149</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>0.04399324</td><td>0.04194391</td><td>0.04603818</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDHT</td><td>0.04512474</td><td>0.03942353</td><td>0.05079211</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDAL</td><td>0.06075845</td><td>0.05173248</td><td>0.06969851</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDLT</td><td>0.04782438</td><td>0.03785284</td><td>0.05769258</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDIS</td><td>0.06237728</td><td>0.05175902</td><td>0.07287664</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>AntiDM    </td><td> 32.929531</td><td>  2863.6116</td><td>5</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>AntiHT    </td><td>365.702399</td><td> 48673.5125</td><td>5</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>Insulin   </td><td> 10.178344</td><td>   630.9561</td><td>5</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>LipidLower</td><td>247.432195</td><td> 39067.3397</td><td>5</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>NoMed     </td><td>495.310186</td><td>207067.3974</td><td>5</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>probDAL</td><td>AntiDM    </td><td>  2.868887</td><td>   197.8934</td><td>5</td></tr>
 </tbody>
 </table>
 
@@ -16724,7 +16807,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[33]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[57]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">coxmoddf</span> <span class="o">&lt;-</span> <span class="nf">coxmodels</span><span class="p">(</span><span class="n">clustersurvdfs</span><span class="p">)</span>
@@ -16740,7 +16823,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[34]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[58]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="nf">print</span><span class="p">(</span><span class="n">coxmoddf</span><span class="p">)</span>
@@ -16765,13 +16848,17 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 
 
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
-<pre><span class="ansi-black-intense-fg"># A tibble: 4 x 7</span>
-  sex    outcome data                   survdf   NullMod    mod_base mod_clus
-  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>   <span class="ansi-black-intense-fg">&lt;list&gt;</span>                 <span class="ansi-black-intense-fg">&lt;list&gt;</span>   <span class="ansi-black-intense-fg">&lt;list&gt;</span>     <span class="ansi-black-intense-fg">&lt;list&gt;</span>   <span class="ansi-black-intense-fg">&lt;list&gt;</span>  
-<span class="ansi-black-intense-fg">1</span> Female MACE    <span class="ansi-black-intense-fg">&lt;tibble [73,378 x 34]&gt;</span> <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
-<span class="ansi-black-intense-fg">2</span> Male   MACE    <span class="ansi-black-intense-fg">&lt;tibble [60,348 x 33]&gt;</span> <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
-<span class="ansi-black-intense-fg">3</span> Female DM      <span class="ansi-black-intense-fg">&lt;tibble [34,581 x 32]&gt;</span> <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
-<span class="ansi-black-intense-fg">4</span> Male   DM      <span class="ansi-black-intense-fg">&lt;tibble [29,006 x 31]&gt;</span> <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
+<pre><span class="ansi-black-intense-fg"># A tibble: 8 x 8</span>
+  sex    outcome data       fut survdf   NullMod    mod_base mod_clus
+  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>   <span class="ansi-black-intense-fg">&lt;list&gt;</span>   <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;list&gt;</span>   <span class="ansi-black-intense-fg">&lt;list&gt;</span>     <span class="ansi-black-intense-fg">&lt;list&gt;</span>   <span class="ansi-black-intense-fg">&lt;list&gt;</span>  
+<span class="ansi-black-intense-fg">1</span> Female MACE    <span class="ansi-black-intense-fg">&lt;tibble&gt;</span>     5 <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
+<span class="ansi-black-intense-fg">2</span> Female MACE    <span class="ansi-black-intense-fg">&lt;tibble&gt;</span>    10 <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
+<span class="ansi-black-intense-fg">3</span> Male   MACE    <span class="ansi-black-intense-fg">&lt;tibble&gt;</span>     5 <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
+<span class="ansi-black-intense-fg">4</span> Male   MACE    <span class="ansi-black-intense-fg">&lt;tibble&gt;</span>    10 <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
+<span class="ansi-black-intense-fg">5</span> Female DM      <span class="ansi-black-intense-fg">&lt;tibble&gt;</span>     5 <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
+<span class="ansi-black-intense-fg">6</span> Female DM      <span class="ansi-black-intense-fg">&lt;tibble&gt;</span>    10 <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
+<span class="ansi-black-intense-fg">7</span> Male   DM      <span class="ansi-black-intense-fg">&lt;tibble&gt;</span>     5 <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
+<span class="ansi-black-intense-fg">8</span> Male   DM      <span class="ansi-black-intense-fg">&lt;tibble&gt;</span>    10 <span class="ansi-black-intense-fg">&lt;tibble&gt;</span> <span class="ansi-black-intense-fg">&lt;cxph.nll&gt;</span> <span class="ansi-black-intense-fg">&lt;coxph&gt;</span>  <span class="ansi-black-intense-fg">&lt;coxph&gt;</span> 
 </pre>
 </div>
 </div>
@@ -16820,7 +16907,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[36]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[62]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">survcoefs</span> <span class="o">&lt;-</span> <span class="nf">survcoefx</span><span class="p">(</span><span class="n">coxmoddf</span><span class="p">)</span>
@@ -16836,7 +16923,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[37]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[63]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="nf">print</span><span class="p">(</span><span class="n">survcoefs</span><span class="p">)</span>
@@ -16861,17 +16948,25 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 
 
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
-<pre><span class="ansi-black-intense-fg"># A tibble: 8 x 7</span>
-  sex    outcome model estimates  varcovmat       Means      Afit             
-  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>   <span class="ansi-black-intense-fg">&lt;chr&gt;</span> <span class="ansi-black-intense-fg">&lt;list&gt;</span>     <span class="ansi-black-intense-fg">&lt;list&gt;</span>          <span class="ansi-black-intense-fg">&lt;list&gt;</span>     <span class="ansi-black-intense-fg">&lt;list&gt;</span>           
-<span class="ansi-black-intense-fg">1</span> Female MACE    base  <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30 x 30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list [10]&gt;</span>
-<span class="ansi-black-intense-fg">2</span> Female MACE    clus  <span class="ansi-black-intense-fg">&lt;dbl [35]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [35 x 35]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [35]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list [10]&gt;</span>
-<span class="ansi-black-intense-fg">3</span> Male   MACE    base  <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30 x 30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list [10]&gt;</span>
-<span class="ansi-black-intense-fg">4</span> Male   MACE    clus  <span class="ansi-black-intense-fg">&lt;dbl [34]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [34 x 34]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [34]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list [10]&gt;</span>
-<span class="ansi-black-intense-fg">5</span> Female DM      base  <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22 x 22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list [10]&gt;</span>
-<span class="ansi-black-intense-fg">6</span> Female DM      clus  <span class="ansi-black-intense-fg">&lt;dbl [27]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [27 x 27]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [27]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list [10]&gt;</span>
-<span class="ansi-black-intense-fg">7</span> Male   DM      base  <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22 x 22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list [10]&gt;</span>
-<span class="ansi-black-intense-fg">8</span> Male   DM      clus  <span class="ansi-black-intense-fg">&lt;dbl [26]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [26 x 26]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [26]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list [10]&gt;</span>
+<pre><span class="ansi-black-intense-fg"># A tibble: 16 x 8</span>
+   sex    outcome   fut model estimates  varcovmat       Means      Afit        
+   <span class="ansi-black-intense-fg">&lt;chr&gt;</span>  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>   <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;chr&gt;</span> <span class="ansi-black-intense-fg">&lt;list&gt;</span>     <span class="ansi-black-intense-fg">&lt;list&gt;</span>          <span class="ansi-black-intense-fg">&lt;list&gt;</span>     <span class="ansi-black-intense-fg">&lt;list&gt;</span>      
+<span class="ansi-black-intense-fg"> 1</span> Female MACE        5 base  <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30 x 30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 2</span> Female MACE        5 clus  <span class="ansi-black-intense-fg">&lt;dbl [35]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [35 x 35]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [35]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 3</span> Female MACE       10 base  <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30 x 30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 4</span> Female MACE       10 clus  <span class="ansi-black-intense-fg">&lt;dbl [35]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [35 x 35]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [35]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 5</span> Male   MACE        5 base  <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30 x 30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 6</span> Male   MACE        5 clus  <span class="ansi-black-intense-fg">&lt;dbl [34]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [34 x 34]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [34]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 7</span> Male   MACE       10 base  <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30 x 30]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [30]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 8</span> Male   MACE       10 clus  <span class="ansi-black-intense-fg">&lt;dbl [34]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [34 x 34]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [34]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 9</span> Female DM          5 base  <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22 x 22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg">10</span> Female DM          5 clus  <span class="ansi-black-intense-fg">&lt;dbl [27]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [27 x 27]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [27]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg">11</span> Female DM         10 base  <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22 x 22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg">12</span> Female DM         10 clus  <span class="ansi-black-intense-fg">&lt;dbl [27]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [27 x 27]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [27]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg">13</span> Male   DM          5 base  <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22 x 22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg">14</span> Male   DM          5 clus  <span class="ansi-black-intense-fg">&lt;dbl [26]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [26 x 26]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [26]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg">15</span> Male   DM         10 base  <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22 x 22]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [22]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg">16</span> Male   DM         10 clus  <span class="ansi-black-intense-fg">&lt;dbl [26]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [26 x 26]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl [26]&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
 </pre>
 </div>
 </div>
@@ -16908,7 +17003,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[38]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[64]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">compmoddf</span> <span class="o">&lt;-</span> <span class="nf">comparemods</span><span class="p">(</span><span class="n">coxmoddf</span><span class="p">)</span>
@@ -16924,7 +17019,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[39]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[65]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">compmoddf</span>
@@ -16951,16 +17046,20 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output " data-mime-type="text/html">
 <table class="dataframe">
-<caption>A tibble: 4 × 18</caption>
+<caption>A tibble: 8 × 19</caption>
 <thead>
-	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>LL0</th><th scope=col>LLBase</th><th scope=col>NVBase</th><th scope=col>LLBaseCl</th><th scope=col>NVBaseCl</th><th scope=col>LRTstat</th><th scope=col>LRTdf</th><th scope=col>LRTp</th><th scope=col>AdeqInd</th><th scope=col>CBase</th><th scope=col>CseBase</th><th scope=col>CBaseCl</th><th scope=col>CseBaseCl</th><th scope=col>Cdiff</th><th scope=col>Cdiffse</th><th scope=col>Cdiffp</th></tr>
-	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
+	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>fut</th><th scope=col>LL0</th><th scope=col>LLBase</th><th scope=col>NVBase</th><th scope=col>LLBaseCl</th><th scope=col>NVBaseCl</th><th scope=col>LRTstat</th><th scope=col>LRTdf</th><th scope=col>LRTp</th><th scope=col>AdeqInd</th><th scope=col>CBase</th><th scope=col>CseBase</th><th scope=col>CBaseCl</th><th scope=col>CseBaseCl</th><th scope=col>Cdiff</th><th scope=col>Cdiffse</th><th scope=col>Cdiffp</th></tr>
+	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>Female</td><td>MACE</td><td>-32431.04</td><td>-31447.77</td><td>30</td><td>-31433.72</td><td>35</td><td> 28.10242</td><td>5</td><td>3.475851e-05</td><td>0.9859111</td><td>0.7264359</td><td>0.004463723</td><td>0.7274166</td><td>0.004462602</td><td>0.000980733</td><td>0.0005080031</td><td>5.353687e-02</td></tr>
-	<tr><td>Male  </td><td>MACE</td><td>-53605.73</td><td>-52507.15</td><td>30</td><td>-52447.47</td><td>34</td><td>119.35444</td><td>4</td><td>7.337351e-25</td><td>0.9484770</td><td>0.6854264</td><td>0.003528423</td><td>0.6905966</td><td>0.003516788</td><td>0.005170237</td><td>0.0008662478</td><td>2.393825e-09</td></tr>
-	<tr><td>Female</td><td>DM  </td><td>-12041.25</td><td>-10901.81</td><td>22</td><td>-10890.46</td><td>27</td><td> 22.70912</td><td>5</td><td>3.836388e-04</td><td>0.9901333</td><td>0.8543404</td><td>0.005291641</td><td>0.8553759</td><td>0.005277785</td><td>0.001035494</td><td>0.0005482979</td><td>5.895081e-02</td></tr>
-	<tr><td>Male  </td><td>DM  </td><td>-16105.26</td><td>-14836.24</td><td>22</td><td>-14830.42</td><td>26</td><td> 11.63925</td><td>4</td><td>2.024552e-02</td><td>0.9954350</td><td>0.8210544</td><td>0.005080388</td><td>0.8223072</td><td>0.005056662</td><td>0.001252796</td><td>0.0004243829</td><td>3.156796e-03</td></tr>
+	<tr><td>Female</td><td>MACE</td><td> 5</td><td>-15100.891</td><td>-14618.848</td><td>30</td><td>-14607.431</td><td>35</td><td>22.834384</td><td>5</td><td>3.630825e-04</td><td>0.9768630</td><td>0.7328223</td><td>0.006465895</td><td>0.7344978</td><td>0.006473680</td><td> 0.0016754179</td><td>0.0009406441</td><td>7.488974e-02</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>10</td><td>-32421.972</td><td>-31439.463</td><td>30</td><td>-31425.868</td><td>35</td><td>27.191486</td><td>5</td><td>5.234738e-05</td><td>0.9863511</td><td>0.7264155</td><td>0.004463970</td><td>0.7275248</td><td>0.004465290</td><td> 0.0011092586</td><td>0.0005270384</td><td>3.531727e-02</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td> 5</td><td>-27533.009</td><td>-26845.514</td><td>30</td><td>-26805.962</td><td>34</td><td>79.104025</td><td>4</td><td>2.696446e-16</td><td>0.9455991</td><td>0.7036140</td><td>0.004698475</td><td>0.7088752</td><td>0.004684074</td><td> 0.0052611990</td><td>0.0012679722</td><td>3.334912e-05</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td>10</td><td>-53605.732</td><td>-52507.146</td><td>30</td><td>-52458.631</td><td>34</td><td>97.028555</td><td>4</td><td>4.219367e-20</td><td>0.9577070</td><td>0.6854264</td><td>0.003528423</td><td>0.6894910</td><td>0.003534826</td><td> 0.0040646343</td><td>0.0008366927</td><td>1.185908e-06</td></tr>
+	<tr><td>Female</td><td>DM  </td><td> 5</td><td> -6943.529</td><td> -6165.961</td><td>22</td><td> -6165.128</td><td>27</td><td> 1.665862</td><td>5</td><td>8.931722e-01</td><td>0.9989299</td><td>0.8723565</td><td>0.006691853</td><td>0.8722215</td><td>0.006714578</td><td>-0.0001349738</td><td>0.0002306181</td><td>5.583663e-01</td></tr>
+	<tr><td>Female</td><td>DM  </td><td>10</td><td>-12041.251</td><td>-10901.812</td><td>22</td><td>-10896.164</td><td>27</td><td>11.296818</td><td>5</td><td>4.580241e-02</td><td>0.9950673</td><td>0.8543404</td><td>0.005291641</td><td>0.8548817</td><td>0.005284485</td><td> 0.0005412843</td><td>0.0003872531</td><td>1.621872e-01</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td> 5</td><td> -9622.876</td><td> -8708.941</td><td>22</td><td> -8708.323</td><td>26</td><td> 1.237698</td><td>4</td><td>8.718537e-01</td><td>0.9993233</td><td>0.8412190</td><td>0.006265155</td><td>0.8413424</td><td>0.006251815</td><td> 0.0001234357</td><td>0.0001595101</td><td>4.390240e-01</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td>10</td><td>-16105.258</td><td>-14836.238</td><td>22</td><td>-14831.444</td><td>26</td><td> 9.588273</td><td>4</td><td>4.796469e-02</td><td>0.9962364</td><td>0.8210544</td><td>0.005080388</td><td>0.8222832</td><td>0.005046399</td><td> 0.0012287340</td><td>0.0003787754</td><td>1.178782e-03</td></tr>
 </tbody>
 </table>
 
@@ -17040,7 +17139,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[40]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[66]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">adeqindbyclus</span> <span class="o">&lt;-</span> <span class="nf">AdeqIndClusFx</span><span class="p">(</span><span class="n">coxmoddf</span><span class="p">)</span>
@@ -17056,7 +17155,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[41]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[67]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">adeqindbyclus</span>
@@ -17083,34 +17182,56 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output " data-mime-type="text/html">
 <table class="dataframe">
-<caption>A tibble: 22 × 4</caption>
+<caption>A tibble: 44 × 5</caption>
 <thead>
-	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>Cluster</th><th scope=col>AdeqInd</th></tr>
-	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
+	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>fut</th><th scope=col>Cluster</th><th scope=col>AdeqInd</th></tr>
+	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>Female</td><td>MACE</td><td>probBC </td><td>0.9802349</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDHT</td><td>0.9850214</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDAL</td><td>1.0000000</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDLT</td><td>1.0000000</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDIS</td><td>1.0000000</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probDHG</td><td>1.0000000</td></tr>
-	<tr><td>Male  </td><td>MACE</td><td>probBC </td><td>0.9530781</td></tr>
-	<tr><td>Male  </td><td>MACE</td><td>probDAL</td><td>0.8981550</td></tr>
-	<tr><td>Male  </td><td>MACE</td><td>probDLT</td><td>1.0000000</td></tr>
-	<tr><td>Male  </td><td>MACE</td><td>probDIS</td><td>0.8448494</td></tr>
-	<tr><td>Male  </td><td>MACE</td><td>probDHG</td><td>0.9544304</td></tr>
-	<tr><td>Female</td><td>DM  </td><td>probBC </td><td>0.9929381</td></tr>
-	<tr><td>Female</td><td>DM  </td><td>probDHT</td><td>0.9880135</td></tr>
-	<tr><td>Female</td><td>DM  </td><td>probDAL</td><td>0.9795036</td></tr>
-	<tr><td>Female</td><td>DM  </td><td>probDLT</td><td>0.9802605</td></tr>
-	<tr><td>Female</td><td>DM  </td><td>probDIS</td><td>0.9712778</td></tr>
-	<tr><td>Female</td><td>DM  </td><td>probDHG</td><td>1.0000000</td></tr>
-	<tr><td>Male  </td><td>DM  </td><td>probBC </td><td>0.9929576</td></tr>
-	<tr><td>Male  </td><td>DM  </td><td>probDAL</td><td>0.9778296</td></tr>
-	<tr><td>Male  </td><td>DM  </td><td>probDLT</td><td>0.9943603</td></tr>
-	<tr><td>Male  </td><td>DM  </td><td>probDIS</td><td>1.0000000</td></tr>
-	<tr><td>Male  </td><td>DM  </td><td>probDHG</td><td>1.0000000</td></tr>
+	<tr><td>Female</td><td>MACE</td><td> 5</td><td>probBC </td><td>0.9721397</td></tr>
+	<tr><td>Female</td><td>MACE</td><td> 5</td><td>probDHT</td><td>0.9640652</td></tr>
+	<tr><td>Female</td><td>MACE</td><td> 5</td><td>probDAL</td><td>1.0000000</td></tr>
+	<tr><td>Female</td><td>MACE</td><td> 5</td><td>probDLT</td><td>1.0000000</td></tr>
+	<tr><td>Female</td><td>MACE</td><td> 5</td><td>probDIS</td><td>0.9516598</td></tr>
+	<tr><td>Female</td><td>MACE</td><td> 5</td><td>probDHG</td><td>1.0000000</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>10</td><td>probBC </td><td>0.9808320</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>10</td><td>probDHT</td><td>0.9785928</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>10</td><td>probDAL</td><td>1.0000000</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>10</td><td>probDLT</td><td>1.0000000</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>10</td><td>probDIS</td><td>1.0000000</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>10</td><td>probDHG</td><td>1.0000000</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td> 5</td><td>probBC </td><td>0.9463184</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td> 5</td><td>probDAL</td><td>0.8472935</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td> 5</td><td>probDLT</td><td>0.9930479</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td> 5</td><td>probDIS</td><td>1.0000000</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td> 5</td><td>probDHG</td><td>1.0000000</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td>10</td><td>probBC </td><td>0.9565878</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td>10</td><td>probDAL</td><td>0.8905300</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td>10</td><td>probDLT</td><td>1.0000000</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td>10</td><td>probDIS</td><td>1.0000000</td></tr>
+	<tr><td>Male  </td><td>MACE</td><td>10</td><td>probDHG</td><td>0.9770586</td></tr>
+	<tr><td>Female</td><td>DM  </td><td> 5</td><td>probBC </td><td>0.9997475</td></tr>
+	<tr><td>Female</td><td>DM  </td><td> 5</td><td>probDHT</td><td>0.9966831</td></tr>
+	<tr><td>Female</td><td>DM  </td><td> 5</td><td>probDAL</td><td>0.9945323</td></tr>
+	<tr><td>Female</td><td>DM  </td><td> 5</td><td>probDLT</td><td>0.9926989</td></tr>
+	<tr><td>Female</td><td>DM  </td><td> 5</td><td>probDIS</td><td>1.0000000</td></tr>
+	<tr><td>Female</td><td>DM  </td><td> 5</td><td>probDHG</td><td>1.0000000</td></tr>
+	<tr><td>Female</td><td>DM  </td><td>10</td><td>probBC </td><td>0.9949573</td></tr>
+	<tr><td>Female</td><td>DM  </td><td>10</td><td>probDHT</td><td>0.9960098</td></tr>
+	<tr><td>Female</td><td>DM  </td><td>10</td><td>probDAL</td><td>0.9884354</td></tr>
+	<tr><td>Female</td><td>DM  </td><td>10</td><td>probDLT</td><td>0.9818388</td></tr>
+	<tr><td>Female</td><td>DM  </td><td>10</td><td>probDIS</td><td>0.9721595</td></tr>
+	<tr><td>Female</td><td>DM  </td><td>10</td><td>probDHG</td><td>1.0000000</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td> 5</td><td>probBC </td><td>0.9993908</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td> 5</td><td>probDAL</td><td>1.0000000</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td> 5</td><td>probDLT</td><td>0.9977648</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td> 5</td><td>probDIS</td><td>0.9936965</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td> 5</td><td>probDHG</td><td>0.9997379</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td>10</td><td>probBC </td><td>0.9928851</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td>10</td><td>probDAL</td><td>0.9834659</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td>10</td><td>probDLT</td><td>0.9941154</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td>10</td><td>probDIS</td><td>1.0000000</td></tr>
+	<tr><td>Male  </td><td>DM  </td><td>10</td><td>probDHG</td><td>1.0000000</td></tr>
 </tbody>
 </table>
 
@@ -17150,7 +17271,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[42]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[68]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">adeqindbypre</span> <span class="o">&lt;-</span> <span class="nf">AdeqIndByPreFx</span><span class="p">(</span><span class="n">coxmoddf</span><span class="p">)</span>
@@ -17166,7 +17287,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[43]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[69]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="nf">head</span><span class="p">(</span><span class="n">adeqindbypre</span><span class="p">)</span>
@@ -17193,18 +17314,18 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output " data-mime-type="text/html">
 <table class="dataframe">
-<caption>A tibble: 6 × 4</caption>
+<caption>A tibble: 6 × 5</caption>
 <thead>
-	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>threshold</th><th scope=col>AdeqInd</th></tr>
-	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
+	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>fut</th><th scope=col>threshold</th><th scope=col>AdeqInd</th></tr>
+	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>Female</td><td>MACE</td><td>0.00</td><td>0.9859111</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>0.01</td><td>0.9815227</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>0.02</td><td>0.9755176</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>0.03</td><td>0.9667583</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>0.04</td><td>0.9535612</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>0.05</td><td>0.9255606</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>0.00</td><td>0.9768630</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>0.01</td><td>0.9525982</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>0.02</td><td>0.8928134</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>0.03</td><td>0.8220271</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>0.04</td><td>0.6485129</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>0.05</td><td>0.7717624</td></tr>
 </tbody>
 </table>
 
@@ -17244,7 +17365,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[44]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[70]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">dcares</span> <span class="o">&lt;-</span> <span class="nf">DCurvFx</span><span class="p">(</span><span class="n">coxmoddf</span><span class="p">)</span>
@@ -17260,7 +17381,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[45]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[71]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="nf">head</span><span class="p">(</span><span class="n">dcares</span><span class="p">)</span>
@@ -17287,18 +17408,18 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output " data-mime-type="text/html">
 <table class="dataframe">
-<caption>A tibble: 6 × 10</caption>
+<caption>A tibble: 6 × 11</caption>
 <thead>
-	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>pred</th><th scope=col>n</th><th scope=col>threshold</th><th scope=col>pos_rate</th><th scope=col>tp_rate</th><th scope=col>fp_rate</th><th scope=col>net_benefit</th><th scope=col>net_intervention_avoided</th></tr>
-	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
+	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>fut</th><th scope=col>pred</th><th scope=col>n</th><th scope=col>threshold</th><th scope=col>pos_rate</th><th scope=col>tp_rate</th><th scope=col>fp_rate</th><th scope=col>net_benefit</th><th scope=col>net_intervention_avoided</th></tr>
+	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>Female</td><td>MACE</td><td>base</td><td>73378</td><td>0.00</td><td>0.04662649</td><td>0.04662649</td><td>0.9533735</td><td>0.04662649</td><td>       NaN</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>base</td><td>73378</td><td>0.01</td><td>0.04662649</td><td>0.04589500</td><td>0.8266008</td><td>0.03754549</td><td>0.05435516</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>base</td><td>73378</td><td>0.02</td><td>0.04662649</td><td>0.04369664</td><td>0.6704002</td><td>0.03001501</td><td>0.13941108</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>base</td><td>73378</td><td>0.03</td><td>0.04662649</td><td>0.04078583</td><td>0.5411188</td><td>0.02405019</td><td>0.22340673</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>base</td><td>73378</td><td>0.04</td><td>0.04662649</td><td>0.03677727</td><td>0.4268085</td><td>0.01899358</td><td>0.29018374</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>base</td><td>73378</td><td>0.05</td><td>0.04662649</td><td>0.03215838</td><td>0.3282494</td><td>0.01488210</td><td>0.35023019</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>base</td><td>73378</td><td>0.00</td><td>0.01838426</td><td>0.018384257</td><td>0.98161574</td><td>0.0183842569</td><td>      NaN</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>base</td><td>73378</td><td>0.01</td><td>0.01838426</td><td>0.016462700</td><td>0.61087792</td><td>0.0102922160</td><td>0.1805037</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>base</td><td>73378</td><td>0.02</td><td>0.01838426</td><td>0.012265257</td><td>0.32002780</td><td>0.0057340770</td><td>0.3617569</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>base</td><td>73378</td><td>0.03</td><td>0.01838426</td><td>0.008258606</td><td>0.16134264</td><td>0.0032686277</td><td>0.4928771</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>base</td><td>73378</td><td>0.04</td><td>0.01838426</td><td>0.005260432</td><td>0.08452125</td><td>0.0017387137</td><td>0.5821227</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>base</td><td>73378</td><td>0.05</td><td>0.01838426</td><td>0.003161711</td><td>0.04514977</td><td>0.0007854068</td><td>0.6472376</td></tr>
 </tbody>
 </table>
 
@@ -17327,7 +17448,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[46]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[72]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">dcaclusres</span> <span class="o">&lt;-</span> <span class="nf">DCurvbyClFx</span><span class="p">(</span><span class="n">coxmoddf</span><span class="p">)</span>
@@ -17343,7 +17464,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[47]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[73]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="nf">head</span><span class="p">(</span><span class="n">dcaclusres</span><span class="p">)</span>
@@ -17370,18 +17491,18 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 
 <div class="jp-RenderedHTMLCommon jp-RenderedHTML jp-OutputArea-output " data-mime-type="text/html">
 <table class="dataframe">
-<caption>A tibble: 6 × 11</caption>
+<caption>A tibble: 6 × 12</caption>
 <thead>
-	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>Cluster</th><th scope=col>pred</th><th scope=col>n</th><th scope=col>threshold</th><th scope=col>pos_rate</th><th scope=col>tp_rate</th><th scope=col>fp_rate</th><th scope=col>net_benefit</th><th scope=col>net_intervention_avoided</th></tr>
-	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
+	<tr><th scope=col>sex</th><th scope=col>outcome</th><th scope=col>fut</th><th scope=col>Cluster</th><th scope=col>pred</th><th scope=col>n</th><th scope=col>threshold</th><th scope=col>pos_rate</th><th scope=col>tp_rate</th><th scope=col>fp_rate</th><th scope=col>net_benefit</th><th scope=col>net_intervention_avoided</th></tr>
+	<tr><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;chr&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th><th scope=col>&lt;dbl&gt;</th></tr>
 </thead>
 <tbody>
-	<tr><td>Female</td><td>MACE</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.00</td><td>0.04412461</td><td>0.04412461</td><td>0.9558754</td><td>0.04412461</td><td>       NaN</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.01</td><td>0.04412461</td><td>0.04335303</td><td>0.8127737</td><td>0.03514320</td><td>0.06671509</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.02</td><td>0.04412461</td><td>0.04095127</td><td>0.6476546</td><td>0.02773383</td><td>0.15272697</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.03</td><td>0.04412461</td><td>0.03812193</td><td>0.5140035</td><td>0.02222492</td><td>0.24778520</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.04</td><td>0.04412461</td><td>0.03393248</td><td>0.3977640</td><td>0.01735898</td><td>0.31350023</td></tr>
-	<tr><td>Female</td><td>MACE</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.05</td><td>0.04412461</td><td>0.02939596</td><td>0.3005098</td><td>0.01357965</td><td>0.37552111</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.00</td><td>0.01714629</td><td>0.017146286</td><td>0.98285371</td><td>0.0171462861</td><td>      NaN</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.01</td><td>0.01714629</td><td>0.015132583</td><td>0.58025347</td><td>0.0092714372</td><td>0.2032437</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.02</td><td>0.01714629</td><td>0.010878250</td><td>0.28771671</td><td>0.0050064810</td><td>0.3880033</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.03</td><td>0.01714629</td><td>0.006964654</td><td>0.13813947</td><td>0.0026922995</td><td>0.5155081</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.04</td><td>0.01714629</td><td>0.004373570</td><td>0.06933774</td><td>0.0014844973</td><td>0.6069708</td></tr>
+	<tr><td>Female</td><td>MACE</td><td>5</td><td>probBC</td><td>base</td><td>55802.39</td><td>0.05</td><td>0.01714629</td><td>0.002497458</td><td>0.03464816</td><td>0.0006738702</td><td>0.6698778</td></tr>
 </tbody>
 </table>
 
@@ -17416,12 +17537,12 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 </div>
 </div>
 </div>
-</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs  ">
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell   ">
 <div class="jp-Cell-inputWrapper">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[48]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[74]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">interactmods</span> <span class="o">&lt;-</span> <span class="nf">interactmodfx</span><span class="p">(</span><span class="n">coxmoddf</span><span class="p">)</span>
@@ -17432,12 +17553,42 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 </div>
 </div>
 
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+
+
+<div class="jp-OutputArea jp-Cell-outputArea">
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="application/vnd.jupyter.stderr">
+<pre>Warning message:
+&#34;There was 1 warning in `dplyr::transmute()`.
+<span class="ansi-cyan-fg">i</span> In argument: `mods = purrr::map(...)`.
+Caused by warning:
+<span class="ansi-yellow-fg">!</span> There was 1 warning in `dplyr::mutate()`.
+<span class="ansi-cyan-fg">i</span> In argument: `mods = purrr::map(...)`.
+Caused by warning in `coxph.fit()`:
+<span class="ansi-yellow-fg">!</span> Loglik converged before variable  7 ; coefficient may be infinite. &#34;
+</pre>
+</div>
+</div>
+
+</div>
+
+</div>
+
 </div><div class="jp-Cell jp-CodeCell jp-Notebook-cell   ">
 <div class="jp-Cell-inputWrapper">
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[49]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[75]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="nf">print</span><span class="p">(</span><span class="n">interactmods</span><span class="p">)</span>
@@ -17462,20 +17613,20 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 
 
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
-<pre><span class="ansi-black-intense-fg"># A tibble: 24 x 8</span>
-   sex    outcome Med_name   model       estimates varcovmat  Means Afit        
-   <span class="ansi-black-intense-fg">&lt;chr&gt;</span>  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>   <span class="ansi-black-intense-fg">&lt;chr&gt;</span>      <span class="ansi-black-intense-fg">&lt;chr&gt;</span>       <span class="ansi-black-intense-fg">&lt;list&gt;</span>    <span class="ansi-black-intense-fg">&lt;list&gt;</span>     <span class="ansi-black-intense-fg">&lt;lis&gt;</span> <span class="ansi-black-intense-fg">&lt;list&gt;</span>      
-<span class="ansi-black-intense-fg"> 1</span> Female MACE    Insulin    OnlyClusMod <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
-<span class="ansi-black-intense-fg"> 2</span> Female MACE    Insulin    FullMod     <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
-<span class="ansi-black-intense-fg"> 3</span> Female MACE    AntiDM     OnlyClusMod <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
-<span class="ansi-black-intense-fg"> 4</span> Female MACE    AntiDM     FullMod     <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
-<span class="ansi-black-intense-fg"> 5</span> Female MACE    AntiHT     OnlyClusMod <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
-<span class="ansi-black-intense-fg"> 6</span> Female MACE    AntiHT     FullMod     <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
-<span class="ansi-black-intense-fg"> 7</span> Female MACE    LipidLower OnlyClusMod <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
-<span class="ansi-black-intense-fg"> 8</span> Female MACE    LipidLower FullMod     <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
-<span class="ansi-black-intense-fg"> 9</span> Male   MACE    Insulin    OnlyClusMod <span class="ansi-black-intense-fg">&lt;dbl [9]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
-<span class="ansi-black-intense-fg">10</span> Male   MACE    Insulin    FullMod     <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
-<span class="ansi-black-intense-fg"># i 14 more rows</span>
+<pre><span class="ansi-black-intense-fg"># A tibble: 48 x 9</span>
+   sex    outcome   fut Med_name   model estimates varcovmat  Means Afit        
+   <span class="ansi-black-intense-fg">&lt;chr&gt;</span>  <span class="ansi-black-intense-fg">&lt;chr&gt;</span>   <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;chr&gt;</span>      <span class="ansi-black-intense-fg">&lt;chr&gt;</span> <span class="ansi-black-intense-fg">&lt;list&gt;</span>    <span class="ansi-black-intense-fg">&lt;list&gt;</span>     <span class="ansi-black-intense-fg">&lt;lis&gt;</span> <span class="ansi-black-intense-fg">&lt;list&gt;</span>      
+<span class="ansi-black-intense-fg"> 1</span> Female MACE        5 Insulin    Only~ <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 2</span> Female MACE        5 Insulin    Full~ <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 3</span> Female MACE        5 AntiDM     Only~ <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 4</span> Female MACE        5 AntiDM     Full~ <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 5</span> Female MACE        5 AntiHT     Only~ <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 6</span> Female MACE        5 AntiHT     Full~ <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 7</span> Female MACE        5 LipidLower Only~ <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 8</span> Female MACE        5 LipidLower Full~ <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"> 9</span> Female MACE       10 Insulin    Only~ <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg">10</span> Female MACE       10 Insulin    Full~ <span class="ansi-black-intense-fg">&lt;dbl&gt;</span>     <span class="ansi-black-intense-fg">&lt;dbl[...]&gt;</span> <span class="ansi-black-intense-fg">&lt;dbl&gt;</span> <span class="ansi-black-intense-fg">&lt;named list&gt;</span>
+<span class="ansi-black-intense-fg"># i 38 more rows</span>
 </pre>
 </div>
 </div>
@@ -17524,7 +17675,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[50]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[76]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="n">result_file2</span> <span class="o">&lt;-</span> <span class="nf">list</span><span class="p">(</span>
@@ -17533,9 +17684,9 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
     <span class="n">CountCovars</span> <span class="o">=</span> <span class="n">countcovarsdf</span><span class="p">,</span>
     <span class="n">CountDXMeds</span> <span class="o">=</span> <span class="n">countdxmed</span><span class="p">,</span>
     <span class="n">CrossSectAssoc</span> <span class="o">=</span> <span class="n">assocdxdf</span><span class="p">,</span>
+    <span class="n">SurvSum</span> <span class="o">=</span> <span class="n">survsum</span><span class="p">,</span>
     <span class="n">RatesByClus</span> <span class="o">=</span> <span class="n">ratesbyclus</span><span class="p">,</span>
     <span class="n">RatesByClusMeds</span> <span class="o">=</span> <span class="n">ratesbyclusmed</span><span class="p">,</span>
-    <span class="n">KaplanMeierDF</span> <span class="o">=</span> <span class="n">kmestdf</span><span class="p">,</span>
     <span class="n">SurvCoefs</span> <span class="o">=</span> <span class="n">survcoefs</span><span class="p">,</span>
     <span class="n">Comparison</span> <span class="o">=</span> <span class="n">compmoddf</span><span class="p">,</span>
     <span class="n">AdeqIndByClus</span> <span class="o">=</span> <span class="n">adeqindbyclus</span><span class="p">,</span>
@@ -17556,7 +17707,7 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[51]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[77]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-r"><pre><span></span><span class="nf">save</span><span class="p">(</span>
