@@ -1,0 +1,825 @@
+---
+title: An R Markdown document converted from "07_VisualClus.ipynb"
+output: html_document
+---
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+library(ggplot2)
+library(Matrix, warn.conflicts = FALSE)
+library(uwot)
+```
+
+```{r}
+options(repr.plot.res = 300)
+```
+
+```{r}
+load("../data/validclusmod.RData")
+```
+
+```{r}
+print(validclusmod)
+```
+
+```{r}
+cluscolmap <- validclusmod %>%
+    transmute(
+        clusmod = map(clusmod, select, Cluster = validclus_name, W = validclus_weights)
+    ) %>%
+    unnest(clusmod) %>%
+    group_by(Cluster) %>%
+    summarise(W2 = exp(sum(log((W))))) %>%
+    arrange(-W2) %>%
+    mutate(
+        Cluster = factor(Cluster, levels = Cluster),
+        ClusCol = scales::hue_pal()(n())
+    )
+cluscolmap
+```
+
+```{r}
+validclusmod <- validclusmod %>%
+    mutate(
+        umapmod = map(
+            sex,
+            ~load_uwot(paste0("../data/ukb/umapmod_", .x))
+        )
+    )
+print(validclusmod)
+```
+
+```{r}
+validclusmod <- validclusmod %>%
+    mutate(
+        residtab = map(
+            umapmod,
+            ~map(
+                1:.x$nn_index$ann$getNItems(),
+                function(i){
+                    .x$nn_index$ann$getItemsVector(i-1)
+                }
+            )
+        ),
+        residtab = map(residtab, do.call, what = rbind)
+    )
+print(validclusmod)
+```
+
+## Linear dimension reduction (PCA)
+
+```{r}
+options(repr.plot.width = 7, repr.plot.height = 4)
+validclusmod %>%
+    mutate(
+        pcaproj = map2(
+            residtab, sex,
+            ~{
+                pcdat <- prcomp(.x)
+                eigs <- pcdat$sdev^2
+                varexp <- round(eigs / sum(eigs), 4)
+                pcdat %>%
+                    "$"("x") %>%
+                    "["(,c(1,2)) %>%
+                    data.frame %>%
+                    ggplot(aes(PC1, PC2)) +
+                    geom_point(shape = ".", alpha = .1) +
+                    theme_bw() +
+                    labs(
+                        title = .y,
+                        x = paste0("PC1 (", varexp[1] * 100, "%)"),
+                        y = paste0("PC2 (", varexp[2] * 100, "%)")
+                    )
+            }
+        )
+    ) %>%
+    pull(pcaproj) %>%
+    patchwork::wrap_plots(nrow = 1)
+```
+
+## Mahalanobis distance
+
+```{r}
+mahadat <- validclusmod %>%
+    transmute(
+        sex,
+        maha_umap = map2(
+            umapmod, residtab,
+            ~data.frame(
+                .x$embedding,
+                PMaha = pchisq(
+                    mahalanobis(
+                        x = .y,
+                        center = colMeans(.y),
+                        cov = cov(.y)
+                    ),
+                    df = ncol(.y),
+                    lower.tail = FALSE
+                )
+            )
+        )
+    ) %>%
+    unnest(maha_umap)
+head(mahadat)
+```
+
+```{r}
+mahadat %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(aes(color = PMaha), shape = ".") +
+    facet_wrap(~sex) +
+    theme_bw() +
+    labs(x = "UMAP1", y = "UMAP2", color = "Mahalanobis\nP-value")
+```
+
+```{r}
+mahares <- mahadat %>%
+    group_by(sex) %>%
+    count(PMaha < 0.05) %>%
+    mutate(
+        prop = n/sum(n)
+    )
+mahares
+```
+
+```{r}
+summarise(
+    mahares,
+    binomres = list(binom.test(n, p = .95))
+) %>%
+    {setNames(.$binomres, .$sex)}
+```
+
+## Cluster allocation probability
+
+```{r}
+validclusmod <- validclusmod %>%
+    mutate(
+        probtab = map2(
+            residtab, clusmod,
+            function(RESIDDF, CLUSMOD){
+                pdfs <- mapply(
+                    function(mu, covmat){ mvtnorm::dmvnorm(RESIDDF, mu, covmat) },
+                    CLUSMOD$validclus_centers, 
+                    CLUSMOD$validclus_covmats
+                )
+                L <- pdfs %*% diag(CLUSMOD$validclus_weights)
+                colnames(L) <- paste0("prob", CLUSMOD$validclus_name)
+                tibble(data.frame(L / rowSums(L)))
+            }
+        )
+    )
+print(validclusmod)
+```
+
+## Maximum cluster allocation probability
+
+```{r}
+maxprobdat <- validclusmod %>%
+    transmute(
+        sex,
+        maxprob = map(probtab, mutate, eid = row_number()),
+        maxprob = map(maxprob, pivot_longer, -eid, names_to = "clus", values_to = "prob"),
+        maxprob = map(maxprob, group_by, eid),
+        maxprob = map(maxprob, slice_max, prob, with_ties = FALSE)
+    ) %>%
+    unnest(maxprob)
+head(maxprobdat)
+```
+
+```{r}
+maxprobdat %>%
+    summarise(
+        Mprob = mean(prob), 
+        SDprob = sd(prob),
+        MinProb = min(prob),
+        MaxProb = max(prob),
+        p25 = quantile(prob, probs = .25),
+        p50 = quantile(prob, probs = .5),
+        p75 = quantile(prob, probs = .75)
+    )
+```
+
+```{r}
+maxprobdat %>%
+    group_by(sex, clus) %>%
+    summarise(
+        Mprob = mean(prob), 
+        SDprob = sd(prob),
+        MinProb = min(prob),
+        MaxProb = max(prob),
+        p25 = quantile(prob, probs = .25),
+        p50 = quantile(prob, probs = .5),
+        p75 = quantile(prob, probs = .75)
+    )
+```
+
+## Relative entropy
+
+```{r}
+validclusmod %>%
+    transmute(
+        sex,
+        RelEnt = map_dbl(
+            probtab,
+            ~{
+                pp <- pmax(as.matrix(.x), .Machine$double.xmin)
+                ent <- -sum(rowSums(pp * log(pp)))
+                1 - ent / (nrow(pp) * log(ncol(pp)))
+            }
+        )
+    )
+```
+
+## Variance explained
+
+```{r}
+validclusmod %>%
+    transmute(
+        sex,
+        SSdat = pmap(
+            list(residtab, probtab, clusmod),
+            function(RESIDDF, PROBDF, CLUSMOD){
+                TSS <- sum(
+                    mahalanobis(
+                        x = RESIDDF, 
+                        center = colMeans(RESIDDF), 
+                        cov = cov(RESIDDF)
+                    )
+                )
+                WCSS <- transmute(
+                    CLUSMOD,
+                    ClusSS = pmap_dbl(
+                        list(validclus_name, validclus_centers, validclus_covmats),
+                        function(CLUSNM, CNTR, CVMT){
+                            sum(
+                                mahalanobis(
+                                    x = RESIDDF, 
+                                    center = CNTR, 
+                                    cov = CVMT
+                                ) * PROBDF[[paste0("prob", CLUSNM)]]
+                            )
+                        }
+                    )
+                )
+                WCSS <- sum(WCSS$ClusSS)
+                data.frame(TSS, WCSS)
+            }
+        )
+    ) %>%
+    unnest(SSdat) %>%
+    mutate(varexp = WCSS / TSS)
+```
+
+## Projection of multivariate normal distributions
+
+Independent, randomly distributed around 0:
+
+```{r}
+randprojdat <- validclusmod %>%
+    transmute(
+        sex,
+        randomproj = map(
+            residtab,
+            ~{
+                n_total <- nrow(.x)
+                randX <- do.call(cbind, map(1:ncol(.x), function(COL){ rnorm(n_total) }))
+                nn <- max(10, round(10 + 15 * (log10(n_total) - 4)))
+                res <- umap(
+                    randX, n_components = 2, 
+                    n_neighbors = nn, nn_method = "annoy", n_trees = 100, n_sgd_threads = "auto", 
+                    init = "pca", n_epochs = 500,
+                    binary_edge_weights = TRUE, dens_scale = 1, verbose = FALSE
+                )
+                data.frame(res)
+            }
+        )
+    ) %>%
+    unnest(randomproj)
+head(randprojdat)
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 3)
+randprojdat %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(shape = ".", alpha = .1) +
+    facet_wrap(~sex) +
+    theme_bw() +
+    labs(x = "UMAP1", y = "UMAP2")
+```
+
+Same distribution found:
+
+```{r}
+randprojdat2 <- validclusmod %>%
+    transmute(
+        sex,
+        randomproj = map(
+            residtab,
+            ~{
+                n_total <- nrow(.x)
+                MEAN <- colMeans(.x)
+                COVMAT <- cov(.x)
+                randX <- mvtnorm::rmvnorm(
+                    n_total, 
+                    mean = MEAN, 
+                    sigma = COVMAT
+                )
+                nn <- max(10, round(10 + 15 * (log10(n_total) - 4)))
+                res <- umap(
+                    randX, n_components = 2, 
+                    n_neighbors = nn, nn_method = "annoy", n_trees = 100, n_sgd_threads = "auto", 
+                    init = "pca", n_epochs = 500,
+                    binary_edge_weights = TRUE, dens_scale = 1, verbose = FALSE
+                )
+                data.frame(res)
+            }
+        )
+    ) %>%
+    unnest(randomproj)
+head(randprojdat2)
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 3)
+randprojdat2 %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(shape = ".", alpha = .1) +
+    facet_wrap(~sex) +
+    theme_bw() +
+    labs(x = "UMAP1", y = "UMAP2")
+```
+
+## Clusters in embedding
+
+```{r}
+embeddf <- validclusmod %>%
+    transmute(
+        sex, 
+        umapmod = map2(
+            umapmod, probtab,
+            ~data.frame(.x$embedding, .y)
+        ),
+        umapmod = map(
+            umapmod,
+            pivot_longer,
+            -c(X1, X2),
+            names_to = "Cluster",
+            values_to = "ClusProb"
+        )
+    ) %>%
+    unnest(umapmod) %>%
+    mutate(Cluster = gsub("prob", "", Cluster)) %>%
+    inner_join(cluscolmap, by = "Cluster")
+head(embeddf)
+```
+
+```{r}
+embedplot <- embeddf %>%
+    ggplot(aes(X1, X2)) +
+    facet_wrap(~sex) +
+    theme_bw()
+```
+
+```{r}
+for(CLUS in unique(embeddf$Cluster)){
+    DAT <- embeddf %>%
+        filter(Cluster == CLUS) %>%
+        group_by(sex) %>%
+        arrange(desc(ClusProb), .by_group = TRUE) %>%
+        mutate(
+            csum = cumsum(ClusProb),
+            csumc = cut(
+                csum,
+                c(-Inf, sum(ClusProb) * .5,  sum(ClusProb) * .8, sum(ClusProb) * .95),
+                labels = FALSE
+            ),
+            csumc = case_when(
+                csumc == 1 ~ .1,
+                csumc == 2 ~ .025,
+                csumc == 3 ~ .001
+            )
+        ) %>%
+        ungroup %>%
+        drop_na
+    embedplot <- embedplot + 
+        geom_point(data = DAT, aes(alpha = csumc, color = ClusCol), shape = ".")
+}
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 4)
+embedplot <- embedplot +
+    scale_alpha_identity() +
+    scale_color_identity() +
+    labs(x = "UMAP1", y = "UMAP2") +
+    theme_bw()
+embedplot
+```
+
+```{r}
+result_tab <- tibble(
+    cohort = c("ukb", "maastricht", "rotterdam", "ghs")
+)
+result_tab
+```
+
+```{r}
+result_tab <- result_tab %>%
+    mutate(
+        data = map(
+            cohort,
+            ~rio::import(paste0("../data/", .x, "/result_file.RData"))
+        )
+    )
+print(result_tab)
+```
+
+```{r}
+cluster_results <- result_tab %>%
+    transmute(
+        cohort,
+        clusdat = map(data, "Cluster_results"),
+        sex = map(clusdat, names)
+    ) %>%
+    unnest(c(sex, clusdat)) %>%
+    mutate(clusdat = map(clusdat, "clusters"))
+print(cluster_results)
+```
+
+```{r}
+cluster_namer <- read_tsv("../data/cluster_namer.tsv", show_col_types = FALSE)
+head(cluster_namer)
+```
+
+```{r}
+BIOMARKERS <- c("whr", "sbp", "dbp", "alt", "scr", "crp", "hdl", "tg", "ldl", "fg")
+```
+
+```{r}
+options(repr.plot.width = 7, repr.plot.height = 5)
+cluscentplot <- cluster_namer %>%
+    transmute(sex, cohort, Cluster = validclus_name, cluster_id) %>%
+    nest(D = -c(sex, cohort)) %>%
+    mutate(D = map(D, add_row, Cluster = "BC", cluster_id = "cluster_0")) %>%
+    unnest(D) %>%
+    inner_join(cluscolmap, by = "Cluster") %>%
+    mutate(Cluster = factor(Cluster, levels = cluscolmap$Cluster)) %>%
+    inner_join(cluster_results, by = c("sex", "cohort")) %>%
+    transmute(
+        sex, 
+        cohort = stringr::str_replace_all(
+            cohort,
+            c(
+                "ukb" = "UKB",
+                "maastricht" = "MS",
+                "rotterdam" = "RS",
+                "ghs" = "GHS"
+            )
+        ),
+        Cluster, ClusCol,
+        centers = map2(clusdat, cluster_id, ~tibble(trait = BIOMARKERS, center = .x[[.y]][["center"]][BIOMARKERS]))
+    ) %>%
+    unnest(centers) %>%
+    mutate(
+        trait = toupper(trait)
+    ) %>%
+    split(f = .$sex) %>%
+    map(
+        ~ggplot(.x, aes(center, trait)) +
+            geom_vline(xintercept = 0, lty = "dashed") +
+            geom_linerange(aes(xmin = 0, xmax = center, group = cohort, color = cohort),
+                           position = position_dodge(width = .5), linewidth = .1) +
+            geom_point(aes(group = cohort, color = cohort),
+                       position = position_dodge(width = .5), size = .25) +
+            scale_color_viridis_d(option = "A", begin = .25, end = .75, direction = -1) +
+            scale_x_continuous(n.breaks = 3) + 
+            labs(x = "Residuals - SD units", y = NULL) +
+            ggh4x::facet_grid2(
+                    sex ~ Cluster, 
+                    #scales = "free_x",
+                    strip = ggh4x::strip_themed(
+                        background_x = ggh4x::elem_list_rect(
+                            fill = alpha(
+                                .x %>%
+                                    select(Cluster, ClusCol) %>%
+                                    unique %>%
+                                    arrange(Cluster) %>%
+                                    pull(ClusCol),
+                                .8
+                            )
+                        )
+                    )
+                ) +
+            theme_bw()
+    )
+cluscentplot
+```
+
+```{r}
+clusw <- validclusmod %>%
+    transmute(
+        sex,
+        NewD = map(clusmod, select, Cluster = validclus_name, W = validclus_weights)
+    ) %>%
+    unnest(NewD) %>%
+    inner_join(cluscolmap, by = "Cluster") %>%
+    mutate(Cluster = factor(Cluster, levels = cluscolmap$Cluster))
+clusw
+```
+
+```{r}
+cluswplot <- clusw %>%
+    expand_grid(plotrang = c("low", "high")) %>%
+    mutate(
+        prop = 100 * W,
+        propmin = case_when(
+            plotrang == "low" ~ 0,
+            prop < 10 ~ NaN, 
+            .default = 60
+        ),
+        propmax = case_when(
+            plotrang == "low" &  prop < 10 ~ prop,
+            plotrang == "low" & prop > 10 ~ 10,
+            plotrang == "high" & prop < 10 ~ NaN,
+            plotrang == "high" & prop > 10 ~ prop
+        )
+    ) %>%
+    ggplot(aes(Cluster, ymin = propmin, ymax = propmax)) +
+    geom_linerange(aes(color = ClusCol), linewidth = 7.5, na.rm = TRUE) +
+    scale_color_identity() +
+    facet_grid(
+        plotrang ~ sex,
+        scales = "free",
+        space = "free_x"
+    ) +
+    ggh4x::force_panelsizes(rows = c(.35, .65)) +
+    ggh4x::scale_y_facet(
+        plotrang == "low", 
+        expand = c(0,0)
+    ) +
+    ggh4x::scale_y_facet(
+        plotrang == "high", breaks = c(70, 80), 
+        expand = expand_scale(mult = c(0,0.1))
+    ) +
+    theme_bw() +
+    theme(
+        strip.text.y = element_blank(),
+        strip.background.y = element_blank()
+    ) +
+    labs(y = "%")
+cluswplot
+```
+
+```{r}
+options(repr.plot.width = 8, repr.plot.height = 5)
+patchwork::wrap_plots(
+    patchwork::wrap_plots(
+        embedplot +
+            theme(
+                legend.position = "none",
+                axis.title = element_text(size = 6),
+                axis.text = element_text(size = 5),
+                panel.spacing = unit(.5, "mm")
+            ),
+        patchwork::plot_spacer(),
+        patchwork::wrap_elements(
+            full = patchwork::wrap_plots(
+                cluswplot +
+                    theme(
+                        axis.text = element_text(size = 5),
+                        axis.title = element_text(size = 5)
+                    ),
+                widths = c(.99, .01)
+            )
+        ),
+        ncol = 1,
+        heights = c(.5, -.05, .5)
+    ),
+    patchwork::wrap_elements(
+        full = patchwork::wrap_plots(
+            cluscentplot[[1]] + theme(axis.title = element_blank()), 
+            cluscentplot[[2]] + theme(axis.title.x = element_text(size = 5)),
+            ncol = 1,
+            guides = "collect"
+        ) &
+        theme(legend.margin = margin(),
+              legend.spacing = unit(0, "mm"),
+              legend.key.size = unit(0.5, "mm"),
+              legend.position = "top",
+              legend.title = element_blank(),
+              legend.text = element_text(size = 6),
+              axis.title.y = element_blank(),
+              axis.text = element_text(size = 5))
+    ),
+    ncol = 2,
+    widths = c(.4, .6)
+)
+```
+
+## Covariance matrices
+
+```{r}
+options(repr.plot.width = 10, repr.plot.height = 5)
+validclusmod %>%
+    transmute(
+        sex, 
+        clusmod = map(
+            clusmod,
+            function(CLUSD){
+                CLUSD %>%
+                    transmute(
+                        validclus_name,
+                        cormat = map(
+                            validclus_covmats,
+                            function(COVMAT){
+                                CORMAT <- cov2cor(COVMAT)
+                                #CORMAT[lower.tri(CORMAT)] <- NA
+                                reshape2::melt(CORMAT, na.rm = TRUE)
+                            }
+                        )
+                    ) %>%
+                    unnest(cormat)
+            }
+        )
+    ) %>%
+    unnest(clusmod) %>%
+    #filter(validclus_name != "BC") %>%
+    mutate(
+        across(c(Var1, Var2), toupper),
+        validclus_name = factor(validclus_name, levels = cluscolmap$Cluster)
+    ) %>%
+    ggplot(aes(Var1, Var2)) +
+    geom_tile(aes(fill = round(value, 5)), color = "black", linewidth = .1) +
+    scale_fill_gradient2(limits = c(-1, 1), low = scales::muted("blue"), high = scales::muted("red"), midpoint = 0) +
+    facet_grid(sex ~ validclus_name) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, vjust = .5, hjust = 1),
+          legend.position = "top",
+          legend.title = element_blank(),
+          axis.title = element_blank(),
+          panel.grid.major.y = element_blank())
+```
+
+```{r}
+load("../data/ukb/strat_dat.RData")
+```
+
+```{r}
+map(strat_dat, head)
+```
+
+```{r}
+options(repr.plot.width = 10, repr.plot.height = 5)
+validclusmod %>% 
+    transmute(
+        sex,
+        rvaltab = map(sex, ~strat_dat[[.x]]),
+        rvaltab = map2(rvaltab, probtab, bind_cols),
+        rvaltab = map(rvaltab, pivot_longer, starts_with("prob"), names_to = "Cluster", values_to = "prob"),
+        rvaltab = map(rvaltab, nest, D = -Cluster)
+    ) %>%
+    unnest(rvaltab) %>%
+    mutate(
+        D = map(
+            D,
+            ~{
+                MAT <- as.matrix(select(.x, age, bmi, all_of(BIOMARKERS)))
+                CORMAT <- cov.wt(x = MAT, wt = .x$prob, cor = TRUE)$cor
+                CORMAT[upper.tri(CORMAT)] <- NA
+                reshape2::melt(CORMAT, na.rm = TRUE)
+            }
+        )
+    ) %>%
+    unnest(D) %>%
+    ggplot(aes(Var2, Var1)) +
+    geom_tile(
+        aes(fill = round(value, 5)), 
+        color = "black", linewidth = .1
+    ) +
+    scale_fill_gradient2(
+        midpoint = 0, limits = c(-1, 1), 
+        low = scales::muted("blue"), high = scales::muted("red")
+    ) +
+    facet_grid(sex ~ Cluster) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90,  vjust = .5, hjust = 1),
+          legend.position = "top",
+          legend.title = element_blank(),
+          axis.title = element_blank(),
+          panel.grid.major.y = element_blank())
+```
+
+```{r}
+options(repr.plot.width = 10, repr.plot.height = 5)
+validclusmod %>% 
+    transmute(
+        sex,
+        rvaltab = map(sex, ~strat_dat[[.x]]),
+        rvaltab = map2(rvaltab, probtab, bind_cols),
+        rvaltab = map(rvaltab, pivot_longer, starts_with("prob"), names_to = "Cluster", values_to = "prob"),
+        rvaltab = map(rvaltab, filter, prob > .8),
+        rvaltab = map(rvaltab, nest, D = -Cluster)
+    ) %>%
+    unnest(rvaltab) %>%
+    mutate(
+        D = map(
+            D,
+            ~{
+                MAT <- as.matrix(select(.x, age, bmi, all_of(BIOMARKERS)))
+                CORMAT <- cor(MAT)
+                CORMAT[upper.tri(CORMAT)] <- NA
+                reshape2::melt(CORMAT, na.rm = TRUE)
+            }
+        )
+    ) %>%
+    unnest(D) %>%
+    ggplot(aes(Var2, Var1)) +
+    geom_tile(
+        aes(fill = round(value, 5)), 
+        color = "black", linewidth = .1
+    ) +
+    scale_fill_gradient2(
+        midpoint = 0, limits = c(-1, 1), 
+        low = scales::muted("blue"), high = scales::muted("red")
+    ) +
+    facet_grid(sex ~ Cluster) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90,  vjust = .5, hjust = 1),
+          legend.position = "top",
+          legend.title = element_blank(),
+          axis.title = element_blank(),
+          panel.grid.major.y = element_blank())
+```
+
+## Modularity of clusters
+
+```{r}
+moduldat <- validclusmod %>%
+    transmute(
+        sex,
+        maxprob = map(probtab, mutate, eid = row_number()),
+        maxprob = map(maxprob, pivot_longer, -eid, names_to = "Cluster", values_to = "prob"),
+        maxprob = map(maxprob, group_by, eid),
+        maxprob = map(maxprob, slice_max, prob, with_ties = FALSE),
+        maxprob = map(maxprob, ungroup),
+        umapgraph = map(
+            umapmod, 
+            ~{
+                g <- igraph::graph_from_adjacency_matrix(.x$fgraph, mode = "undirected")
+                igraph::V(g)$name <- 1:length(g)
+                return(g)
+            }   
+        )
+    )
+print(moduldat)
+```
+
+```{r}
+moduldat <- moduldat %>%
+    mutate(maxprob = map(maxprob, nest, Data = -Cluster)) %>%
+    unnest(maxprob)
+print(moduldat)
+```
+
+```{r}
+moduldat <- moduldat %>%
+    mutate(
+        umapgraph = map2(
+            umapgraph, Data,
+            ~igraph::induced_subgraph(.x, as.character(.y$eid))
+        )
+    )
+print(moduldat)
+```
+
+```{r}
+moduldat %>%
+    transmute(
+        sex, Cluster,
+        transitivity = map(
+            umapgraph,
+            igraph::transitivity
+        )
+    )
+```
+
+```{r}
+test %>%
+    mutate(
+        transitivity = map(
+            transitivity,
+            ~tibble(
+                estimate = median(.x, na.rm = TRUE),
+                lwr = quantile(.x, prob = .025, na.rm = TRUE),
+                upr = quantile(.x, prob = .975, na.rm = TRUE)
+            )
+        )
+    ) %>%
+    unnest(transitivity)
+```
+

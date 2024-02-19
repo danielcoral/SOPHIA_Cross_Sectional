@@ -1,0 +1,101 @@
+---
+title: An R Markdown document converted from "05_DensityBased.ipynb"
+output: html_document
+---
+
+# Density-based clustering
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+library(ggplot2)
+library(dbscan)
+```
+
+```{r}
+options(repr.plot.res = 300)
+```
+
+## Loading data
+
+```{r}
+load("../data/validclusmod.RData")
+```
+
+```{r}
+print(validclusmod)
+```
+
+```{r}
+validclusmod <- validclusmod %>%
+    mutate(
+        umapmod = map(
+            sex,
+            ~uwot::load_uwot(paste0("../data/ukb/umapmod_", .x))
+        )
+    )
+print(validclusmod)
+```
+
+```{r}
+validclusmod <- validclusmod %>%
+    mutate(
+        residtab = map(
+            umapmod,
+            ~map(
+                1:.x$nn_index$ann$getNItems(),
+                function(i){
+                    .x$nn_index$ann$getItemsVector(i-1)
+                }
+            )
+        ),
+        residtab = map(residtab, do.call, what = rbind)
+    )
+print(validclusmod)
+```
+
+## HDBSCAN
+
+```{r}
+hdbmod <- validclusmod %>%
+    expand_grid(
+        minpt = c(5, 10, 15, 20, 25, 50, 100, 250, 500, 1000)
+    ) %>%
+    transmute(
+        sex,
+        choosemod = map2(
+            residtab, minpt,
+            ~hdbscan(.x, minPts = .y)
+        )
+    )
+```
+
+```{r}
+options(repr.plot.width = 6, repr.plot.height = 4)
+hdbmod %>%
+    transmute(
+        sex,
+        minpt = map_dbl(choosemod, "minPts"),
+        clustab = map(
+            choosemod,
+            ~.x$cluster %>%
+                table %>%
+                prop.table %>%
+                t %>%
+                data.frame %>%
+                select(2, Freq) %>%
+                setNames(c("Cluster", "Weight"))
+        )
+    ) %>%
+    unnest(clustab) %>%
+    ggplot(aes(Weight, Cluster)) +
+    geom_col() +
+    facet_grid(minpt ~ sex, scales = "free_y", space = "free_y") +
+    scale_x_continuous(labels = \(x) 100 * x) +
+    labs(x = "Weight (%)") +
+    theme_bw() +
+    theme(strip.text.y = element_text(angle = 0))
+```
+

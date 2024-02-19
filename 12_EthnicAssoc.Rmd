@@ -1,0 +1,982 @@
+---
+title: An R Markdown document converted from "12_EthnicAssoc.ipynb"
+output: html_document
+---
+
+# Analysis in other ethnicities
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+library(ggplot2)
+library(Matrix, warn.conflicts = FALSE)
+library(uwot)
+library(survival)
+options(repr.plot.res = 300)
+```
+
+## Input data
+
+```{r}
+recoded_ethn <- read_tsv("../data/recoded_ethn.tsv", show_col_types = FALSE)
+```
+
+```{r}
+head(recoded_ethn)
+```
+
+```{r}
+strat_dat <- recoded_ethn %>%
+    nest(Data = -c(Ethnicity, sex))
+print(strat_dat)
+```
+
+```{r}
+BIOMARKERS <- c("whr", "sbp", "dbp", "alt", "scr", "crp", "hdl", "tg", "ldl", "fg")
+```
+
+```{r}
+strat_dat <- strat_dat %>%
+    mutate(
+        Data = map(
+            Data,
+            function(DAT){
+                DAT %>%
+                    mutate(
+                        across(
+                            all_of(c("bmi", BIOMARKERS)),
+                            function(COL){
+                                Mean <- mean(COL)
+                                SD <- sd(COL)
+                                upr <- Mean + (5*SD)
+                                lwr <- Mean - (5*SD)
+                                COL[COL < lwr] <- NA
+                                COL[COL > upr] <- NA
+                                return(COL)
+                            }
+                        )
+                    ) %>%
+                    drop_na
+            }
+        )
+    )
+```
+
+```{r}
+print(strat_dat)
+```
+
+```{r}
+strat_dat %>%
+    group_by(Ethnicity) %>%
+    summarise(Total = sum(map_dbl(Data, nrow)))
+```
+
+## Cluster allocation probabilities and UMAP models
+
+```{r}
+load("../data/validclusmod.RData")
+```
+
+```{r}
+print(validclusmod)
+```
+
+```{r}
+validclusmod <- validclusmod %>%
+    mutate(
+        umapmod = map(
+            sex, 
+            ~load_uwot(paste0("../data/ukb/umapmod_", .x))
+        )
+    )
+print(validclusmod)
+```
+
+```{r}
+df <- inner_join(validclusmod, strat_dat, by = "sex")
+print(df)
+```
+
+## Calculation of probabilities
+
+```{r}
+df <- df %>%
+    mutate(
+        resids = map2(
+            Data, residmod,
+            function(DATA, RESIDMOD){
+                sapply(
+                    BIOMARKERS,
+                    function(biomarker){
+                        PREDICTDAT <- as.matrix(cbind(Intercept = 1, DATA[,c("bmi", "age", "smoking")]))
+                        MODELDAT <- dplyr::filter(RESIDMOD, Biomarker == biomarker)
+                        RESIDSD <- MODELDAT$SDRes
+                        COEFDAT <- MODELDAT[,c("Intercept", "bmi", "age", "smoking")]
+                        COEFDAT <- t(COEFDAT)
+                        PREDVAL <- as.vector(PREDICTDAT %*% COEFDAT)
+                        RESIDVAL <- DATA[[biomarker]] - PREDVAL
+                        RESIDVAL / RESIDSD
+                    }
+                )
+            }
+        )
+    )
+print(df)
+```
+
+```{r}
+df <- df %>%
+    mutate(
+        probs = map2(
+            resids, clusmod,
+            function(RESIDDF, CLUSMOD){
+                mus <- CLUSMOD$validclus_centers
+                mus <- map(mus, function(mu){ mu[BIOMARKERS] })
+                covmats <- CLUSMOD$validclus_covmats
+                covmats <- map(covmats, function(covmat){ covmat[BIOMARKERS, BIOMARKERS] })
+                wts <- CLUSMOD$validclus_weights
+                pdfs <- mapply(
+                    function(mu, covmat){ mvtnorm::dmvnorm(RESIDDF, mu, covmat) },
+                    mus, covmats
+                )
+                L <- pdfs %*% diag(wts)
+                colnames(L) <- paste0("prob", CLUSMOD$validclus_name)
+                tibble(data.frame(L / rowSums(L)))
+            }
+        )
+    )
+print(df)
+```
+
+```{r}
+head(df$probs[[1]])
+```
+
+```{r}
+cluscolmap <- validclusmod %>%
+    transmute(
+        clusmod = map(clusmod, select, Cluster = validclus_name)
+    ) %>%
+    unnest(clusmod) %>%
+    unique %>%
+    mutate(ClusCol = scales::hue_pal()(n()))
+cluscolmap
+```
+
+```{r}
+PercDat <- df %>%
+    transmute(
+        sex, Ethnicity,
+        probs = map(probs, colSums),
+        probs = map(
+            probs, 
+            ~tibble(
+                Cluster = gsub("prob", "", names(.x)),
+                N = .x,
+                Perc = .x/sum(.x)
+            )
+        )
+    ) %>%
+    unnest(probs)
+head(PercDat)
+```
+
+```{r}
+PercDatRef <- validclusmod %>%
+    transmute(
+        sex, 
+        Ethnicity = "European",
+        clusmod = map(
+            clusmod, select, 
+            Cluster = validclus_name, 
+            Perc = validclus_weights
+        )
+    ) %>%
+    unnest(clusmod)
+head(PercDatRef)
+```
+
+```{r}
+ClusOrd <- PercDatRef %>%
+    group_by(sex) %>%
+    arrange(desc(Perc), .by_group = TRUE) %>%
+    mutate(ordn = row_number()) %>%
+    ungroup %>%
+    select(sex, Cluster, ordn)
+ClusOrd
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 12)
+PercDat %>%
+    select(-N) %>%
+    bind_rows(PercDatRef) %>%
+    inner_join(cluscolmap, by = "Cluster") %>%
+    mutate(
+        Perc2 = ifelse(Perc > 0.125, Perc, NA)
+    ) %>%
+    pivot_longer(c(Perc, Perc2), names_to = "PercLevel", values_to = "PercValue") %>%
+    mutate(
+        Base = case_when(
+            PercLevel == "Perc" ~ 0,
+            PercLevel == "Perc2" & !is.na(PercValue) ~ .6
+        ),
+        PercValue = ifelse(PercLevel == "Perc" & PercValue > .125, .125, PercValue),
+        PercLevel = factor(PercLevel, levels = c("Perc2", "Perc")),
+        across(c(Base, PercValue), \(x) 100 * x),
+        Ethnicity = factor(Ethnicity, levels = c("European", "African", "SouthAsian"))
+    ) %>%
+    inner_join(ClusOrd, by = c("sex", "Cluster")) %>%
+    ggplot(aes(reorder(Cluster, ordn), PercValue)) +
+    geom_rect(
+        aes(
+            xmin = Cluster, xmax = Cluster,
+            ymin = Base, ymax = PercValue,
+            color = ClusCol
+        ),
+        linewidth = 8, na.rm = TRUE
+    ) +
+    scale_color_identity() +
+    ggh4x::facet_nested(
+        PercLevel ~ sex + Ethnicity,
+        scales = "free", space = "free_x"
+    ) +
+    ggh4x::force_panelsizes(
+        rows = c(1, 3)
+    ) +
+    ggh4x::scale_y_facet(
+        PercLevel == "Perc",
+        breaks = c(0, 5, 10),
+        expand = c(.05, 0, 0, 0) 
+    ) +
+    ggh4x::scale_y_facet(
+        PercLevel == "Perc2",
+        breaks = c(60,80),
+        limits = c(60,90),
+        expand = expansion(mult = c(0, NA))
+    ) +
+    theme_bw() +
+    theme(strip.text.y = element_blank()) +
+    labs(x = NULL, y = "%")
+```
+
+## Comparing proportions
+
+```{r}
+RefDat <- validclusmod %>%
+    transmute(
+        sex, 
+        residtab = map(
+            umapmod,
+            ~map(
+                1:.x$nn_index$ann$getNItems(),
+                function(i){
+                    .x$nn_index$ann$getItemsVector(i-1)
+                }
+            )
+        ),
+        resids = map(residtab, do.call, what = rbind),
+        probs = map2(
+            resids, clusmod,
+            function(RESIDDF, CLUSMOD){
+                pdfs <- mapply(
+                    function(mu, covmat){ mvtnorm::dmvnorm(RESIDDF, mu, covmat) },
+                    CLUSMOD$validclus_centers, 
+                    CLUSMOD$validclus_covmats
+                )
+                L <- pdfs %*% diag(CLUSMOD$validclus_weights)
+                colnames(L) <- paste0("prob", CLUSMOD$validclus_name)
+                tibble(data.frame(L / rowSums(L)))
+            }
+        )
+    )
+print(RefDat)
+```
+
+```{r}
+RefN <- RefDat %>%
+    transmute(
+        sex, Ethnicity = "European",
+        probs = map(probs, colSums),
+        probs = map(
+            probs, 
+            ~tibble(
+                Cluster = gsub("prob", "", names(.x)),
+                N = .x, Total = sum(.x)
+            )
+        )
+    ) %>%
+    unnest(probs)
+RefN
+```
+
+```{r}
+RefNList <- nest(RefN, RefD = -c(sex, Cluster))
+print(RefNList)
+```
+
+```{r}
+BinomDat <- PercDat %>%
+    select(-Perc) %>%
+    group_by(sex, Ethnicity) %>%
+    mutate(Total = sum(N)) %>%
+    ungroup %>%
+    nest(Data = -c(sex, Cluster, Ethnicity)) %>%
+    inner_join(RefNList, by = join_by(sex, Cluster)) %>%
+    mutate(
+        Data = map2(Data, Ethnicity, ~mutate(.x, Ethnicity = .y)),
+        Data = map2(RefD, Data, bind_rows),
+        RefD = NULL,
+        Data = map(
+            Data, mutate, 
+            Nnot = Total - N,
+            Ethnicity = relevel(factor(Ethnicity), ref = "European")
+        )
+    )
+print(BinomDat)
+```
+
+```{r}
+BinomDat$Data[[1]]
+```
+
+```{r}
+BinomDat <- BinomDat %>%
+    mutate(
+        Mod = map(Data, ~glm(cbind(round(N), round(Nnot)) ~ Ethnicity, data = .x, family = binomial))
+    )
+print(BinomDat)
+```
+
+```{r}
+BinomRes <- BinomDat %>%
+    transmute(
+        sex, Cluster, Ethnicity,
+        Data = map(Data, filter, Ethnicity != "European"),
+        Data = map(Data, select, -Ethnicity),
+        Mod = map(Mod, broom::tidy, exponentiate = TRUE, conf.int = TRUE),
+        Mod = map(Mod, filter, term != "(Intercept)"),
+        Mod = map(Mod, select, -c(term, std.error, statistic))
+    ) %>%
+    unnest(c(Data, Mod)) %>%
+    mutate(
+        padj = p.adjust(p.value, "fdr")
+    )
+BinomRes
+```
+
+```{r}
+write_tsv(BinomRes, "../data/BinomRes_ethn.tsv")
+```
+
+```{r}
+SigBinomRes <- BinomRes %>% 
+    filter(padj < 0.05)
+SigBinomRes
+```
+
+```{r}
+SigUpBinomRes <- SigBinomRes %>% 
+    filter(estimate > 1) %>%
+    mutate(across(c(estimate, conf.low, conf.high), ~round(.x, digits = 2))) %>%
+    arrange(Ethnicity, sex, desc(estimate))
+SigUpBinomRes
+```
+
+## UMAP projection
+
+Now we can plot the deviations from BMI of the new data points on top of the UK biobank projection:
+
+```{r}
+newcoords <- df %>%
+    transmute(
+        sex, Ethnicity,
+        umapg = map2(
+            resids, umapmod, 
+            function(newx, mod){
+                data.frame(umap_transform(newx, mod))
+            }
+        )
+    ) %>%
+    unnest(umapg)
+head(newcoords)
+```
+
+```{r}
+basecoords <- df %>%
+    transmute(
+        sex, Ethnicity,
+        umapg = map(umapmod, ~data.frame(.x$embedding))
+    ) %>%
+    unnest(umapg)
+head(basecoords)
+```
+
+```{r}
+options(repr.plot.height = 5, repr.plot.width = 5)
+embed <- basecoords %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(shape = ".", alpha = .1) +
+    geom_point(data = data.frame(newcoords),
+               color = "red", shape = ".") +
+    facet_grid(Ethnicity~sex) +
+    theme_bw() +
+    labs(x = "UMAP1", y = "UMAP2")
+embed
+```
+
+## Covariate data
+
+```{r}
+covar_dat <- readr::read_tsv("../data/covar_dat.tsv", show_col_types = FALSE)
+head(covar_dat)
+```
+
+## Prevalence
+
+```{r}
+df <- df %>%
+    mutate(
+        # Joining complete biomarker data with allocation probabilities
+        joindat = map2(Data, probs, bind_cols),
+        # Adding covariate data
+        joindat = map(joindat, inner_join, covar_dat, by = "eid")
+    )
+print(df)
+```
+
+```{r}
+prevdat <- df %>%
+    transmute(
+        sex, Ethnicity,
+        propdat = map(
+            joindat,
+            function(DAT){
+                tibble(
+                    Cluster = names(DAT)[grepl("^prob", names(DAT))]
+                ) %>%
+                    mutate(
+                        clusprobdat = map(
+                            Cluster,
+                            function(CL){
+                                map(
+                                    c("HT", "CHD", "Stroke", "LiverFailure", "RA", "T2D", "T1D", 
+                                      "Insulin", "AntiDM", "AntiHT", "LipidLower"),
+                                    function(DX){
+                                        tibble(
+                                            Disease = DX,
+                                            N = sum(DAT[[CL]]),
+                                            Ncases = sum(DAT[[DX]] * DAT[[CL]])
+                                        )
+                                    }
+                                ) %>%
+                                    bind_rows
+                            }
+                        )
+                    ) %>%
+                    unnest(clusprobdat)
+            }
+        )
+    ) %>%
+    unnest(propdat) %>%
+    mutate(Cluster = gsub("prob", "", Cluster))
+```
+
+```{r}
+head(prevdat)
+```
+
+### Odds ratios relative to the concordant cluster
+
+```{r}
+ORdat <- prevdat %>%
+    nest(Data = -c(sex, Ethnicity, Disease)) %>%
+    mutate(
+        Data = map(
+            Data,
+            mutate,
+            Cluster = factor(Cluster),
+            Cluster = relevel(Cluster, ref = "BC")
+        ),
+        mod = map(
+            Data,
+            ~glm(cbind(round(Ncases), round(N - Ncases)) ~ Cluster, data = .x, family = binomial)
+        ),
+        modres = map(mod, broom::tidy),
+        modres = map(modres, filter, term != "(Intercept)"),
+        modres = map(modres, mutate, Cluster = gsub("Cluster", "", term), term = NULL),
+        modres = map2(Data, modres, left_join, join_by(Cluster))
+    ) %>%
+    select(sex, Ethnicity, Disease, modres) %>%
+    unnest(modres) %>%
+    mutate(
+        OR = exp(estimate),
+        lwr = exp(estimate - qnorm(1 - .05/2) * std.error),
+        upr = exp(estimate + qnorm(1 - .05/2) * std.error)
+    ) %>%
+    select(-c(estimate, std.error, statistic))
+head(ORdat)
+```
+
+```{r}
+DiseaseDat <- ORdat %>%
+    filter(Disease %in% c("HT", "CHD", "Stroke", "LiverFailure", "RA", "T2D", "T1D")) %>%
+    mutate(padj = p.adjust(p.value, "fdr"))
+head(DiseaseDat)
+```
+
+```{r}
+write_tsv(DiseaseDat, "../data/DiseaseDat_ethn.tsv")
+```
+
+```{r}
+DiseaseDat %>%
+    filter(padj < 0.01)
+```
+
+```{r}
+options(repr.plot.width = 10, repr.plot.height = 5)
+DiseaseDat %>%
+    drop_na %>%
+    ggplot(aes(OR, Cluster)) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(aes(xmin = lwr, xmax = upr)) +
+    geom_point() +
+    ggh4x::facet_nested(sex + Ethnicity ~ Disease, scales = "free", space = "free_y") +
+    labs(x = "OR relative to BC", y = NULL, color = "Model") +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5)
+    )
+```
+
+```{r}
+MedDat <- ORdat %>%
+    filter(Disease %in% c("Insulin", "AntiHT", "LipidLower")) %>%
+    mutate(padj = p.adjust(p.value, "fdr"))
+head(MedDat)
+```
+
+```{r}
+write_tsv(MedDat, "../data/MedDat_ethn.tsv")
+```
+
+```{r}
+MedDat %>%
+    filter(padj < 0.01)
+```
+
+```{r}
+options(repr.plot.width = 6, repr.plot.height = 5)
+ORdat %>%
+    drop_na %>%
+    filter(Disease %in% c("Insulin", "AntiHT", "LipidLower")) %>%
+    ggplot(aes(OR, Cluster)) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(aes(xmin = lwr, xmax = upr)) +
+    geom_point() +
+    ggh4x::facet_nested(sex + Ethnicity ~ Disease, scales = "free", space = "free_y") +
+    labs(x = "OR relative to BC", y = NULL, color = "Model") +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5)
+    )
+```
+
+## Incidence
+
+```{r}
+df <- df %>%
+    expand_grid(
+        Outcome = c("mace", "dm")
+    )
+print(df)
+```
+
+```{r}
+df <- df %>%
+    mutate(
+        SurvDat = map(
+            Outcome,
+            ~readr::read_tsv(paste0("../data/surv", .x, "dat_ethn.tsv"), show_col_types = FALSE)
+        ),
+        SurvDat = map2(
+            SurvDat, joindat, inner_join, by = "eid"
+        ),
+        SurvDat = map2(
+            Outcome, SurvDat,
+            ~switch(
+                .x,
+                mace = filter(.y, CHD == 0, Stroke == 0, PAD == 0),
+                dm = filter(.y, T2D == 0, T1D == 0, Insulin == 0, AntiDM == 0)
+            )
+        ),
+        SurvDat = map(SurvDat, select, -where(\(x) all(x == 0)))
+    )
+print(df)
+```
+
+## Data for modelling
+
+```{r}
+egfrcalc <- function(scr, sex, age){
+    scr <- scr / 88.42
+    alpha <- ((sex == "Female") * -0.241) + ((sex == "Male") * -0.302)
+    kappa <- ((sex == "Female") * 0.7) + ((sex == "Male") * 0.9)
+    creat_kappa <- scr / kappa
+    minkappa <- pmin(creat_kappa, 1) 
+    maxkappa <- pmax(creat_kappa, 1)
+    minkappa_alpha <- minkappa^alpha
+    maxkappa_exp <- maxkappa^(-1.200)
+    age_term <- 0.9938^age
+    sex_term <- ((sex == "Female") * 1.012) + ((sex == "Male") * 1) 
+    142 * minkappa_alpha * maxkappa_exp * age_term * sex_term
+}
+```
+
+```{r}
+df <- df %>%
+    mutate(
+        SurvRegDat = pmap(
+            list(SurvDat, Outcome, sex),
+            function(DAT, OUT, SEX){
+                alrprobdat <- DAT %>%
+                    transmute(
+                        across(starts_with("prob"), \(x) ifelse(x < 1e-15, 1e-15, x)),
+                        across(starts_with("prob"), \(x) ifelse(x > (1 - 1e-15), (1 - 1e-15), x)),
+                        across(starts_with("prob"), \(x) log(x/probBC)),
+                        probBC = NULL
+                    )
+                names(alrprobdat) <- paste0("alr", names(alrprobdat))
+                switch(
+                    OUT,
+                    mace = transmute(
+                        DAT,
+                        outcome_value, outcome_timeyrs,
+                        age, smoking, bmi,
+                        sbp,
+                        tchol = hdl + ldl + (tg/2.2),
+                        hdl,
+                        fg,
+                        whr, alt, crp,
+                        T2D, T2Dage,
+                        lnegfr = log(egfrcalc(scr, SEX, age)),
+                        lnegfrsq = lnegfr^2,
+                        age_smoking = age*smoking,
+                        age_sbp = age*sbp,
+                        age_tchol = age*tchol,
+                        age_hdl = age*hdl,
+                        age_fg = age*fg,
+                        age_lnegfr = age*lnegfr,
+                        age_t2d = age*T2D,
+                        Insulin, AntiHT, LipidLower
+                    ),
+                    dm = transmute(
+                        DAT,
+                        outcome_value, outcome_timeyrs,
+                        age, smoking, bmi,
+                        whr, sbp, dbp, alt, scr, crp, hdl, tg, ldl, fg,
+                        CHD, Stroke, AntiHT, LipidLower
+                    )
+                ) %>%
+                     bind_cols(alrprobdat)   
+            }
+        )
+    )
+print(df)
+```
+
+## Survival models
+
+```{r}
+df <- df %>%
+    mutate(
+        NullMod = map(
+            SurvRegDat, 
+            ~coxph(Surv(time = outcome_timeyrs, event = outcome_value) ~ 1, data = .x)
+        ),
+        ModBase = map(
+            SurvRegDat,
+            ~{
+                .x <- select(.x, -starts_with("alr"))
+                coxph(Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = .x)
+            }
+        ),
+        ModClus = map(
+            SurvRegDat, 
+            ~coxph(Surv(time = outcome_timeyrs, event = outcome_value) ~ ., data = .x)
+        )
+    )
+print(df)
+```
+
+## Added value
+
+```{r}
+addedvaltab <- df %>%
+    transmute(
+        Outcome, sex, Ethnicity,
+        LL0 = map_dbl(NullMod, logLik),
+        LLBase = map_dbl(ModBase, logLik),
+        NVBase = map_dbl(ModBase, \(MOD) sum(!is.na(MOD$coefficients))),
+        LLClus = map_dbl(ModClus, logLik),
+        NVClus = map_dbl(ModClus, \(MOD) sum(!is.na(MOD$coefficients))),
+        LRTstat = 2 * abs(LLClus - LLBase),
+        LRTdf = NVClus - NVBase,
+        LRTp = stats::pchisq(
+            q = LRTstat,
+            df = LRTdf,
+            lower.tail = FALSE
+        ),
+        LRTpadj = p.adjust(LRTp, "fdr"),
+        AdeqInd = (LLBase - LL0) / (LLClus - LL0),
+        CBase = purrr::map_dbl(ModBase, \(MOD) MOD[["concordance"]][["concordance"]]),
+        CseBase = purrr::map_dbl(ModBase, \(MOD) MOD[["concordance"]][["std"]]),
+        CClus = purrr::map_dbl(ModClus, \(MOD) MOD[["concordance"]][["concordance"]]),
+        CseClus = purrr::map_dbl(ModClus, \(MOD) MOD[["concordance"]][["std"]]),
+        Cdat = purrr::map2(ModClus, ModBase, survival::concordance),
+        Cdiff = purrr::map_dbl(Cdat, \(MOD) c(1, -1) %*% coef(MOD)),
+        Cdiffse = purrr::map_dbl(Cdat, \(MOD) sqrt(c(1, -1) %*% vcov(MOD) %*% c(1, -1))),
+        Cdiffp = 2*pnorm(-abs(Cdiff / Cdiffse)),
+        Cdiffpadj = p.adjust(Cdiffp, "fdr"),
+        Cdat = NULL
+    )
+addedvaltab
+```
+
+```{r}
+write_tsv(addedvaltab, "../data/addedvaltab_ethn.tsv")
+```
+
+```{r}
+addedvaltab %>%
+    select(Outcome, sex, Ethnicity, LRTp, Cdiffp) %>%
+    filter(LRTp < 0.05)
+```
+
+#### Effect of increasing 10% in a discordant cluster at the expense of the concordant cluster on outcomes
+
+```{r}
+shift10pc <- validclusmod %>%
+    expand_grid(Outcome = c("mace", "dm")) %>%
+    transmute(
+        sex, Outcome,
+        NewD = map2(
+            clusmod, residmod,
+            function(CLUSMOD, RESIDMOD){
+                averesidshift <- CLUSMOD %>%
+                    expand_grid(
+                        Cluster = CLUSMOD$validclus_name
+                    ) %>%
+                    mutate(
+                        # Producing the shifts
+                        toadd = case_when(
+                            Cluster == "BC" ~ 0,
+                            Cluster == validclus_name ~ .1,
+                            validclus_name == "BC" ~ -.1,
+                            TRUE ~ 0
+                        ),
+                        validclus_weights = validclus_weights + toadd
+                    ) %>%
+                    group_by(Cluster) %>%
+                    summarise(
+                        # Generating data with the shift
+                        RGD = list(
+                            MGMM::rGMM(
+                                n = 5e5, 
+                                d = length(validclus_centers[[1]]),
+                                k = n(),
+                                pi = validclus_weights,
+                                means = validclus_centers, 
+                                covs = validclus_covmats
+                            ) %>%
+                                colMeans %>%
+                                setNames(
+                                    names(validclus_centers[[1]])
+                                )
+                        )
+                    ) %>%
+                    mutate(
+                        # Values corresponding to the shift
+                        predbmvals = map(
+                            RGD,
+                            ~tibble(
+                                Biomarker = names(.x), sdresidval = .x
+                            ) %>%
+                                inner_join(RESIDMOD, by = "Biomarker") %>%
+                                mutate(
+                                    sdresid = sdresidval * SDRes,
+                                    bmi = 30 * bmi,
+                                    age = 60 * age,
+                                    bmvalue = rowSums(pick(Intercept, bmi, age, sdresid))
+                                ) %>%
+                                {setNames(.$bmvalue, .$Biomarker)} %>%
+                                c(bmi = 30, age = 60) %>% t
+                        ),
+                        # Calculating probabilities and log-ratios
+                        predprobs = map(
+                            RGD, 
+                            ~{
+                                pdfs <- mapply(
+                                    function(mu, covmat){ 
+                                        mvtnorm::dmvnorm(
+                                            .x, mu, covmat
+                                        ) 
+                                    },
+                                    CLUSMOD$validclus_centers, 
+                                    CLUSMOD$validclus_covmats
+                                )
+                                L <- pdfs %*% diag(CLUSMOD$validclus_weights)
+                                colnames(L) <- CLUSMOD$validclus_name
+                                L / rowSums(L)
+                            }
+                        ),
+                        alrprobs = map(
+                            predprobs,
+                            ~{
+                                cclus <- colnames(.x) == "BC"
+                                alrp <- .x[,!cclus]/.x[,cclus]
+                                names(alrp) <- paste0("alrprob", names(alrp))
+                                t(alrp)
+                            }
+                        ),
+                        joindat = map2(predbmvals, alrprobs, cbind)
+                    ) %>%
+                    transmute(Cluster, joindat = map(joindat, data.frame)) %>%
+                    unnest(joindat)
+            }
+        )
+    )
+print(shift10pc)
+```
+
+```{r}
+shift10pc$NewD[[1]]
+```
+
+```{r}
+shift10pc <- shift10pc %>%
+    mutate(
+        NewD = pmap(
+            list(Outcome, NewD, sex),
+            function(OUT, DAT, SEX){
+                switch(
+                    OUT,
+                    mace = transmute(
+                        DAT,
+                        Cluster,
+                        sbp,
+                        tchol = hdl + ldl + (tg/2.2),
+                        hdl,
+                        fg,
+                        whr, alt, crp,
+                        lnegfr = log(egfrcalc(scr, SEX, age)),
+                        lnegfrsq = lnegfr^2,
+                        age_sbp = age*sbp,
+                        age_tchol = age*tchol,
+                        age_hdl = age*hdl,
+                        age_fg = age*fg,
+                        age_lnegfr = age*lnegfr,
+                        across(starts_with("alrprob"))
+                    ),
+                    dm = transmute(
+                        DAT,
+                        Cluster,
+                        whr, sbp, dbp, alt, scr, crp, hdl, tg, ldl, fg,
+                        across(starts_with("alrprob"))
+                    )
+                )
+            }
+        )
+    )
+print(shift10pc)
+```
+
+```{r}
+shift10pc <- shift10pc %>%
+    mutate(
+        NewD = map(
+            NewD,
+            ~{
+                mat <- as.matrix(select(.x, -Cluster))
+                rownames(mat) <- .x$Cluster
+                cclus <- rownames(mat) == "BC"
+                t(t(mat[!cclus,]) - mat[cclus,])
+            }
+        )
+    )
+print(shift10pc)
+```
+
+```{r}
+shift10pc$NewD[[1]]
+```
+
+```{r}
+df <- df %>%
+    inner_join(
+        shift10pc, by = join_by(sex, Outcome)
+    )
+print(df)
+```
+
+And now we can calculate the effect of each shift:
+
+```{r}
+shift10est <- df %>%
+    transmute(
+        sex, Ethnicity, Outcome,
+        ModClus = map2(
+            ModClus, NewD,
+            function(MOD, D){
+                BETAS <- coef(MOD)
+                nm <- intersect(colnames(D), names(BETAS))
+                covm <- vcov(MOD)[nm,nm]
+                data.frame(
+                    Cluster = gsub("alrprob", "", rownames(D)),
+                    estimate = drop(D[,nm] %*% BETAS[nm]),
+                    se = apply(
+                        D[,nm], 1,
+                        \(clus){ 
+                            sqrt(drop(clus %*% covm %*% clus))
+                        }
+                    )
+                )
+            }
+        )
+    ) %>%
+    unnest(ModClus) %>%
+    mutate(
+        pval = 2 * pnorm(-abs(estimate/se)),
+        HR = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se),
+        padj = p.adjust(pval, "fdr")
+    )
+head(shift10est)
+```
+
+```{r}
+write_tsv(shift10est, "../data/shift10est_ethn.tsv")
+```
+
+```{r}
+shift10est %>%
+    filter(padj < 0.05)
+```
+
+```{r}
+options(repr.plot.width = 4, repr.plot.height = 5)
+shift10est %>%
+    ggplot(aes(HR, Cluster)) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(aes(xmin = lwr, xmax = upr)) +
+    geom_point() +
+    ggh4x::facet_nested(sex + Ethnicity ~ Outcome, scales = "free", space = "free_y") +
+    labs(y = NULL) +
+    theme_bw()
+```
+

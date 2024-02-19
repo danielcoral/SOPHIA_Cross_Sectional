@@ -1,0 +1,203 @@
+---
+title: An R Markdown document converted from "15_GRSAssoc.ipynb"
+output: html_document
+---
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+library(ggplot2)
+library(Matrix, warn.conflicts = FALSE)
+library(uwot)
+options(repr.plot.res = 300)
+```
+
+```{r}
+sample_file <- "~/projects/DVA/Data/UKBiobank/ukb_57232/genetic_files/ukb57232_imp_chr1_v3_s487266.sample"
+sample_file <- paste("tail -n+3", sample_file, "| cut -d' ' -f1") %>%
+    pipe %>%
+    read_tsv(col_types = "n", col_names = "eid")
+head(sample_file)
+nrow(sample_file)
+```
+
+```{r}
+grs_tab <- map_dfc(list.files("../data/PRScoresUKB", full.names = TRUE),
+                   read_tsv, show_col_types = FALSE) %>%
+    mutate(eid = sample_file$eid, .before = 1)
+head(grs_tab)
+```
+
+```{r}
+grs_tab <- grs_tab %>%
+    mutate(across(-eid, ~as.vector(scale(.x))))
+head(grs_tab)
+```
+
+```{r}
+genpcdat <- {
+    tab_name <- "/ludc/Home/daniel_c/projects/DVA/Data/UKBiobank/ukb_57232/data_files/41806.tab"
+    tab_vars <- tibble(
+        colid = c("f.eid", paste0("f.22009.0.", 1:10)),
+        colnam = c("eid", paste0("gpc", 1:10))
+    )
+    tab_vars <- paste("head -1", tab_name, "| tr '\t' '\n'") %>%
+        pipe %>%
+        read_table(col_names = "colid", col_types = "c") %>%
+        mutate(colpos = row_number()) %>%
+        inner_join(tab_vars, by = "colid")
+    column_cmd <- paste("cut -f", paste(tab_vars$colpos, collapse = ","), tab_name)
+    read_tsv(
+        pipe(column_cmd),
+        skip = 1, col_names = tab_vars$colnam,
+        col_types = cols(.default = "n")
+    )
+}
+head(genpcdat)
+```
+
+```{r}
+load("../data/validclusmod.RData")
+print(validclusmod)
+```
+
+```{r}
+load("../data/ukb/strat_dat.RData")
+print(strat_dat)
+```
+
+```{r}
+validclusmod <- validclusmod %>%
+    mutate(
+        bmtab = map(sex, ~strat_dat[[.x]]),
+        umapmod = map(
+            sex, 
+            ~load_uwot(paste0("../data/ukb/umapmod_", .x))
+        ),
+        residtab = map(
+            umapmod,
+            ~map(
+                1:.x$nn_index$ann$getNItems(),
+                function(i){
+                    .x$nn_index$ann$getItemsVector(i-1)
+                }
+            )
+        ),
+        residtab = map(residtab, do.call, what = rbind),
+        probtab = map2(
+            residtab, clusmod,
+            function(RESIDDF, CLUSMOD){
+                pdfs <- mapply(
+                    function(mu, covmat){ mvtnorm::dmvnorm(RESIDDF, mu, covmat) },
+                    CLUSMOD$validclus_centers, 
+                    CLUSMOD$validclus_covmats
+                )
+                L <- pdfs %*% diag(CLUSMOD$validclus_weights)
+                colnames(L) <- paste0("prob", CLUSMOD$validclus_name)
+                tibble(data.frame(L / rowSums(L)))
+            }
+        ),
+        prsprobtab = map(
+            probtab,
+            mutate,
+            across(everything(), ~ifelse(.x < 1e-15, 1e-15, .x)),
+            across(everything(), ~ifelse(.x > 1 - 1e-15, 1 - 1e-15, .x)),
+            across(-probBC, ~log(.x/probBC)),
+            probBC = NULL
+        ),
+        prsprobtab = map2(
+            bmtab, prsprobtab,
+            ~bind_cols(select(.x, eid), .y)
+        ),
+        prsprobtab = map(
+            prsprobtab,
+            ~inner_join(.x, grs_tab, by = "eid")
+        ),
+        prsprobtab = map(
+            prsprobtab,
+            ~inner_join(.x, genpcdat, by = "eid")
+        ),
+        prsprobtab = map(
+            prsprobtab,
+            pivot_longer,
+            starts_with("prob"),
+            names_to = "Cluster",
+            values_to = "logratio"
+        ),
+        prsprobtab = map(
+            prsprobtab,
+            mutate,
+            Cluster = gsub("prob", "", Cluster)
+        ),
+        prsprobtab = map(
+            prsprobtab,
+            pivot_longer,
+            -c(eid, Cluster, logratio, starts_with("gpc")),
+            names_to = "GRSName",
+            values_to = "GRSVal"
+        )
+    )
+print(validclusmod)
+```
+
+```{r}
+validclusmod$prsprobtab[[1]] %>% head
+```
+
+```{r}
+clus_prs <- validclusmod %>%
+    transmute(sex, prsprobtab = map(prsprobtab, nest, Data = -c(Cluster, GRSName))) %>%
+    unnest(prsprobtab)
+print(clus_prs)
+```
+
+```{r}
+head(clus_prs$Data[[1]])
+```
+
+```{r}
+clus_prs <- clus_prs %>%
+    mutate(Mod = map(Data, ~lm(logratio ~ GRSVal + gpc1 + gpc2 + gpc3 + gpc4 + gpc5 + gpc6 + gpc7 + gpc8 + gpc9 + gpc10, data = .x)))
+print(clus_prs)
+```
+
+```{r}
+clus_prs_est <- clus_prs %>%
+    transmute(
+        sex, Cluster, Trait = GRSName,
+        ModRes = map(Mod, broom::tidy, conf.int = TRUE)
+    ) %>%
+    unnest(ModRes) %>%
+    filter(term == "GRSVal")
+head(clus_prs_est)
+```
+
+```{r}
+options(repr.plot.height = 3.5, repr.plot.width = 12)
+clus_prs_est %>%
+    mutate(
+        across(c(estimate, conf.low, conf.high), exp),
+        padj = p.adjust(p.value, "fdr")
+    ) %>%
+    ggplot(aes(estimate, Cluster)) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(aes(xmin = conf.low, xmax = conf.high)) +
+    geom_point(aes(color = padj < 0.05)) +
+    facet_grid(sex ~ Trait, scales = "free", space = "free_y") +
+    labs(
+        x = "Odds ratio of having a discordant vs concordant profile\nper SD unit of PRS", 
+        y = NULL,
+        color = "p < 0.05 after 5% FDR correction"
+    ) +
+    theme_bw() +
+    theme(
+        legend.position = "top",
+        legend.title = element_text(size = 7),
+        legend.text = element_text(size = 6),
+        axis.text.x = element_text(size = 5.5),
+        axis.title.x = element_text(size = 8)
+    )
+```
+

@@ -1,0 +1,207 @@
+---
+title: An R Markdown document converted from "03_CentBased.ipynb"
+output: html_document
+---
+
+# Centroid-based clustering
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+library(ggplot2)
+```
+
+```{r}
+options(repr.plot.res = 300)
+```
+
+## Loading data
+
+```{r}
+load("../data/validclusmod.RData")
+```
+
+```{r}
+print(validclusmod)
+```
+
+```{r}
+validclusmod <- validclusmod %>%
+    mutate(
+        umapmod = map(
+            sex,
+            ~uwot::load_uwot(paste0("../data/ukb/umapmod_", .x))
+        )
+    )
+print(validclusmod)
+```
+
+```{r}
+validclusmod <- validclusmod %>%
+    mutate(
+        residtab = map(
+            umapmod,
+            ~map(
+                1:.x$nn_index$ann$getNItems(),
+                function(i){
+                    .x$nn_index$ann$getItemsVector(i-1)
+                }
+            )
+        ),
+        residtab = map(residtab, do.call, what = rbind)
+    )
+print(validclusmod)
+```
+
+## Centroid based clustering
+
+```{r}
+gausmixres <- validclusmod %>%
+    transmute(
+        sex,
+        choosemod = map(residtab, mclust::mclustBIC, G = 1:20, modelNames = "VVV")
+    )
+```
+
+```{r}
+print(gausmixres)
+```
+
+```{r}
+options(repr.plot.height = 3, repr.plot.width = 7)
+gausmixres %>%
+    mutate(
+        choosemod = map(
+            choosemod,
+            ~data.frame(
+                Nclus = 1:20,
+                BIC = .x[,1]
+            )
+        )
+    ) %>%
+    unnest(choosemod) %>%
+    ggplot(aes(Nclus, BIC)) +
+    geom_line() +
+    geom_point() +
+    facet_wrap(~sex, scales = "free") +
+    theme_bw()
+```
+
+```{r}
+gmbest <- validclusmod %>%
+    transmute(
+        sex,
+        mod = map(
+            residtab, 
+            ~{
+                mclustBIC <- mclust::mclustBIC
+                mclust::Mclust(.x, G = 6, modelNames = "VVV")
+            }
+        )
+    )
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 8)
+gmbestcent <- gmbest %>%
+    transmute(
+        sex,
+        meandat = map(mod, ~.x$parameters$mean)
+    )
+print(gmbestcent)
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 8)
+gmbestcent %>%
+    mutate(
+        meandat = map(
+            meandat,
+            ~{
+                res <- t(.x)
+                colnames(res) <- c("whr", "sbp", "dbp", "alt", "scr", "crp", "hdl", "tg", "ldl", "fg")
+                data.frame(Cluster = paste0("Cluster", 1:nrow(res)), res)
+            }
+        )
+    ) %>%
+    unnest(meandat) %>%
+    pivot_longer(-c(sex, Cluster), names_to = "trait", values_to = "residval") %>%
+    mutate(trait = toupper(trait)) %>%
+    ggplot(aes(residval, trait)) +
+    geom_segment(aes(xend = 0, yend = trait)) +
+    geom_vline(xintercept = 0, lty = "dashed") +
+    geom_point() +
+    facet_grid(sex ~ Cluster) +
+    labs(x = "Residuals - SD units", y = NULL) +
+    theme_bw()
+```
+
+```{r}
+options(repr.plot.height = 2.5, repr.plot.width = 4.5)
+gmbest %>%
+    transmute(
+        sex,
+        weightdat = map(
+            mod,
+            ~data.frame(Cluster = paste0("Cluster", 1:.x$G), 
+                        Weight = .x$parameters$pro)
+        )
+    ) %>%
+    unnest(weightdat) %>%
+    ggplot(aes(Weight, reorder(Cluster, desc(Cluster)))) +
+    geom_col() +
+    facet_wrap(~sex) +
+    scale_x_continuous(labels = \(x) 100 * x) +
+    theme_bw() +
+    labs(x = "Weight (%)", y = NULL)
+```
+
+```{r}
+gmbest %>%
+    transmute(
+        sex,
+        RelEnt = map_dbl(
+            mod,
+            ~{
+                pp <- pmax(as.matrix(.x$z), .Machine$double.xmin)
+                ent <- -sum(rowSums(pp * log(pp)))
+                1 - ent / (nrow(pp) * log(ncol(pp)))
+            }
+        )
+    )
+```
+
+```{r}
+embeddf <- validclusmod %>%
+    transmute(sex, umapmod = map(umapmod, ~data.frame(.x$embedding))) %>%
+    unnest(umapmod)
+head(embeddf)
+```
+
+```{r}
+centembed <- validclusmod %>%
+    inner_join(gmbestcent, by = "sex") %>%
+    transmute(
+        sex,
+        meandat = map2(
+            meandat, umapmod,
+            ~data.frame(uwot::umap_transform(t(.x), .y))
+        )
+    ) %>%
+    unnest(meandat)
+head(centembed)
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 3)
+embeddf %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(shape = ".", alpha = .1) +
+    geom_point(data = centembed, color = "red") +
+    facet_wrap(~sex) +
+    theme_bw() +
+    labs(x = "UMAP1", y = "UMAP2")
+```
+

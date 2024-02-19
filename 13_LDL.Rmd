@@ -1,0 +1,160 @@
+---
+title: An R Markdown document converted from "13_LDL.ipynb"
+output: html_document
+---
+
+## Added net benefit of cholesterol to age
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+library(ggplot2)
+library(survival)
+library(dcurves)
+```
+
+## Data
+
+```{r}
+load("../data/ukb/strat_dat.RData")
+```
+
+```{r}
+map(strat_dat, head)
+```
+
+```{r}
+strat_dat_simple <- strat_dat %>%
+    map(transmute, eid, age, ldl) %>%
+    map(drop_na)
+map(strat_dat_simple, head)
+```
+
+```{r}
+covar_dat <- read_tsv("../data/covar_dat.tsv", show_col_types = FALSE)
+head(covar_dat)
+```
+
+```{r}
+nopriorcvd <- covar_dat %>%
+    filter(CHD == 0, Stroke == 0, PAD == 0) %>%
+    select(eid)
+head(nopriorcvd)
+```
+
+```{r}
+survmacedat <- read_tsv("../data/survmacedat.tsv", show_col_types = FALSE)
+head(survmacedat)
+```
+
+```{r}
+moddf <- tibble(sex = c("Female", "Male")) %>%
+    mutate(
+        dat = map(
+            sex,
+            ~reduce(
+                list(
+                    strat_dat_simple[[.x]],
+                    nopriorcvd, 
+                    survmacedat
+                ), 
+                inner_join, 
+                by = "eid"
+            )
+        ),
+        mod1 = map(
+            dat, 
+            ~coxph(
+                Surv(time = outcome_timeyrs, event = outcome_value) ~ age,
+                data = .x
+            )
+        ),
+        mod2 = map(
+            dat, 
+            ~coxph(
+                Surv(time = outcome_timeyrs, event = outcome_value) ~ age + ldl,
+                data = .x
+            )
+        )
+    )
+print(moddf)
+```
+
+```{r}
+moddf <- moddf %>%
+    mutate(
+        preddat = pmap(
+            list(dat, mod1, mod2),
+            function(DAT, MOD1, MOD2){
+                NEWDAT <- DAT
+                NEWDAT$outcome_timeyrs <- 10
+                NEWDAT$outcome_value <- 0
+                DAT$mod1 <- 1 - predict(MOD1, NEWDAT, type = "survival")
+                DAT$mod2 <- 1 - predict(MOD2, NEWDAT, type = "survival")
+                return(DAT)
+            }
+        )
+    )
+print(moddf)
+```
+
+```{r}
+moddf$preddat[[1]] %>% head
+```
+
+```{r}
+moddf <- moddf %>%
+    mutate(
+        dcares = map(
+            preddat,
+            ~{
+                RES <- dca(
+                    formula = Surv(time = outcome_timeyrs, event = outcome_value) ~ mod1 + mod2,
+                    data = .x, time = 10,
+                    thresholds = .1
+                )
+                net_intervention_avoided(RES)
+            }
+        )
+    )
+print(moddf)
+```
+
+```{r}
+moddf$dcares[[1]]$dca
+```
+
+```{r}
+moddf %>%
+    transmute(
+        sex,
+        nbdiff = map_dbl(
+            dcares,
+            ~{
+                dcadat <- .x$dca
+                nbmod1 <- dcadat$net_benefit[dcadat$variable == "mod1"]
+                nbmod2 <- dcadat$net_benefit[dcadat$variable == "mod2"]
+                1e4 * (nbmod2 - nbmod1)
+            }
+        )
+    )
+```
+
+```{r}
+moddf %>%
+    transmute(
+        sex,
+        niadiff = map_dbl(
+            dcares,
+            ~{
+                dcadat <- .x$dca
+                niamod1 <- dcadat$net_intervention_avoided[dcadat$variable == "mod1"]
+                niamod2 <- dcadat$net_intervention_avoided[dcadat$variable == "mod2"]
+                1e4 * (niamod2 - niamod1)
+            }
+        )
+    )
+```
+

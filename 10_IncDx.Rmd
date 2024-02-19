@@ -1,0 +1,2019 @@
+---
+title: An R Markdown document converted from "10_IncDx.ipynb"
+output: html_document
+---
+
+# Incidence of MACE
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+library(ggplot2)
+library(Matrix,  warn.conflicts = FALSE)
+library(lme4, warn.conflicts = FALSE)
+library(lmerTest, warn.conflicts = FALSE)
+```
+
+```{r}
+options(repr.plot.res = 300)
+```
+
+## Color map of clusters
+
+```{r}
+load("../data/validclusmod.RData")
+```
+
+```{r}
+print(validclusmod)
+```
+
+```{r}
+cluscolmap <- validclusmod %>%
+    transmute(
+        clusmod = map(clusmod, select, Cluster = validclus_name, W = validclus_weights)
+    ) %>%
+    unnest(clusmod) %>%
+    group_by(Cluster) %>%
+    summarise(W2 = exp(sum(log((W))))) %>%
+    arrange(-W2) %>%
+    mutate(
+        Cluster = factor(Cluster, levels = Cluster),
+        ClusCol = scales::hue_pal()(n())
+    )
+cluscolmap
+```
+
+## Importing results
+
+```{r}
+result_tab <- tibble(
+    cohort = c("ukb", "maastricht", "rotterdam", "ghs")
+)
+result_tab
+```
+
+```{r}
+result_tab <- result_tab %>%
+    mutate(
+        data = map(
+            cohort,
+            ~tryCatch(rio::import(paste0("../data/", .x, "/result_file2.RData")),
+                      error = \(e) NULL)
+        )
+    )
+print(result_tab)
+```
+
+```{r}
+result_long <- result_tab %>%
+    expand_grid(
+        element_name = c(
+            "SurvSum",
+            "RatesByClus",
+            "RatesByClusMeds",
+            "SurvCoefs",
+            "Comparison",
+            "AdeqIndByClus",
+            "AdeqIndByPre",
+            "DCARes",
+            "DCAClusREs",
+            "InteractMods"
+        )
+    ) %>%
+    transmute(
+        cohort, element_name,
+        element_value = map2(
+            data, element_name,
+            ~.x[[.y]]
+        )
+    ) %>%
+    filter(!map_lgl(element_value, is.null))
+print(result_long)
+```
+
+```{r}
+result_long <- result_long %>%
+    group_by(element_name) %>%
+    summarise(
+        element_value = list(
+            bind_rows(
+                map2(
+                    element_value, cohort, 
+                    ~mutate(.x, cohort = .y, .before = 1)
+                )
+            )
+        )
+    )
+print(result_long)
+```
+
+---
+
+## Summary of survival data
+
+```{r}
+survsumd <- result_long %>%
+    filter(element_name == "SurvSum") %>%
+    select(-element_name) %>%
+    unnest(element_value)
+survsumd
+```
+
+---
+
+## Risk of MACE and T2D in discordant clusters relative to concordant cluster
+
+```{r}
+ratesbyclusdf <- result_long %>%
+    filter(element_name == "RatesByClus") %>%
+    select(-element_name) %>%
+    unnest(element_value)
+head(ratesbyclusdf)
+```
+
+```{r}
+rrbycohort <- ratesbyclusdf %>%
+    nest(D = -c(cohort, sex, outcome, fut)) %>%
+    mutate(
+        mod = map(
+            D,
+            ~glm(round(Ncases) ~ Cluster + offset(log(TPT)), data = .x, family = poisson)
+        ),
+        mod = map(mod, broom::tidy),
+        mod = map(mod, mutate, term = gsub("Cluster", "", term), statistic = NULL),
+        mod = map2(D, mod, left_join, by = c("Cluster" = "term")),
+        D = NULL
+    ) %>%
+    unnest(mod)
+head(rrbycohort)
+```
+
+```{r}
+poolrrFE <- ratesbyclusdf %>%
+    nest(D = -c(sex, outcome, fut)) %>%
+    mutate(
+        D = map(
+            D,
+            ~{
+                mod <- glm(
+                    round(Ncases) ~ Cluster + offset(log(TPT)), 
+                    data = .x, 
+                    family = poisson
+                ) %>%
+                    broom::tidy() %>%
+                    mutate(
+                        term = gsub("Cluster", "", term), 
+                        statistic = NULL
+                    )
+                dat <- .x %>%
+                    group_by(Cluster) %>%
+                    summarise(across(c(Ncases, TPT), sum))
+                left_join(dat, mod, by = c("Cluster" = "term"))
+            }
+        )
+    ) %>%
+    unnest(D)
+head(poolrrFE)
+```
+
+```{r}
+poolrrRE <- ratesbyclusdf %>%
+    nest(D = -c(sex, outcome, fut)) %>%
+    mutate(
+        D = map(
+            D,
+            ~{
+                mod <- glmer(
+                    round(Ncases) ~ Cluster + offset(log(TPT)) + (1|cohort), 
+                    data = .x, 
+                    family = poisson
+                ) %>%
+                    broom.mixed::tidy() %>%
+                    mutate(
+                        term = gsub("Cluster", "", term), 
+                        across(c(effect, group, statistic), \(x) NULL)
+                    )
+                dat <- .x %>%
+                    group_by(Cluster) %>%
+                    summarise(across(c(Ncases, TPT), sum))
+                left_join(dat, mod, by = c("Cluster" = "term"))
+            }
+        )
+    ) %>%
+    unnest(D)
+head(poolrrRE)
+```
+
+```{r}
+allRRs <- bind_rows(
+    PooledFE = poolrrFE,
+    PooledRE = poolrrRE,
+    .id = "cohort"
+) %>%
+    bind_rows(rrbycohort) %>%
+    mutate(
+        cohort = factor(
+            case_match(
+                cohort,
+                "ukb" ~ "UKB",
+                "maastricht" ~ "MS",
+                "rotterdam" ~ "RS",
+                "ghs" ~ "GHS",
+                .default = cohort
+            ),
+            levels = c("UKB", "MS", "RS", "GHS", "PooledFE", "PooledRE")
+        ),      
+        RR = exp(estimate),
+        LOWERCI = exp(estimate - qnorm(1 - .05/2)*std.error),
+        UPPERCI = exp(estimate + qnorm(1 - .05/2)*std.error)
+    ) %>%
+    arrange(sex, outcome, Cluster, fut, cohort)
+head(allRRs, 10)
+nrow(allRRs)
+```
+
+```{r}
+write_tsv(allRRs, "../data/allRRs.tsv")
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 4)
+allRRs %>%
+    drop_na %>%
+    filter(sex == "Female") %>%
+    mutate(Cluster = gsub("prob", "", Cluster)) %>%
+    inner_join(cluscolmap, by = "Cluster") %>%
+    mutate(Cluster = factor(Cluster, levels = cluscolmap$Cluster)) %>%
+    ggplot(aes(RR, reorder(cohort, desc(cohort)))) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(aes(xmin = LOWERCI, xmax = UPPERCI)) +
+    geom_point(aes(shape = cohort == "Pooled"), show.legend = FALSE) +
+    scale_shape_manual(values = c(20, 23)) +
+    ggh4x::facet_nested(
+        outcome+fut~Cluster, scales = "free", independent = "x",
+        space = "free_y",
+        strip = ggh4x::strip_nested(
+            background_x = ggh4x::elem_list_rect(
+                fill = alpha(cluscolmap$ClusCol[cluscolmap$Cluster != "BC"], .8)
+            )
+        )
+    ) +
+    scale_x_continuous(n.breaks = 4, labels = \(x)round(x, 1)) +
+    labs(x = "Risk relative to concordant cluster", y = NULL) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5)
+    )
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 4)
+allRRs %>%
+    drop_na %>%
+    filter(sex == "Male") %>%
+    mutate(Cluster = gsub("prob", "", Cluster)) %>%
+    inner_join(cluscolmap, by = "Cluster") %>%
+    mutate(Cluster = factor(Cluster, levels = cluscolmap$Cluster)) %>%
+    ggplot(aes(RR, reorder(cohort, desc(cohort)))) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(aes(xmin = LOWERCI, xmax = UPPERCI)) +
+    geom_point(aes(shape = cohort == "Pooled"), show.legend = FALSE) +
+    scale_shape_manual(values = c(20, 23)) +
+    ggh4x::facet_nested(
+        outcome+fut~Cluster, scales = "free", independent = "x",
+        space = "free_y",
+        strip = ggh4x::strip_nested(
+            background_x = ggh4x::elem_list_rect(
+                fill = alpha(cluscolmap$ClusCol[!cluscolmap$Cluster %in% c("BC", "DHT")], .8)
+            )
+        )
+    ) +
+    scale_x_continuous(n.breaks = 4, labels = \(x)round(x, 1)) +
+    labs(x = "Risk relative to concordant cluster", y = NULL) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5)
+    )
+```
+
+---
+
+## Significance of models with clusters
+
+```{r}
+comparedat <- result_long %>% 
+    filter(element_name == "Comparison") %>%
+    select(-element_name) %>%
+    unnest(element_value)
+comparedat
+```
+
+---
+
+## Estimates from log-contrast models
+
+```{r}
+survcoefd <- result_long %>% 
+    filter(element_name == "SurvCoefs") %>%
+    select(-element_name) %>%
+    unnest(element_value)
+print(survcoefd)
+```
+
+```{r}
+logratioest <- survcoefd %>%
+    filter(model == "clus") %>%
+    transmute(
+        cohort, sex, outcome, fut,
+        estimates = map2(
+            estimates, varcovmat,
+            ~{
+                cls <- grep("alrprob", names(.x), value = TRUE)
+                data.frame(
+                    Cluster = gsub("alrprob", "", cls), 
+                    ESTIMATE = .x[cls],
+                    SE = diag(.y)[cls]
+                )
+            }
+        )
+    ) %>%
+    unnest(estimates)
+head(logratioest)
+```
+
+```{r}
+poollogratioest <- logratioest %>%
+    nest(D = -c(sex, outcome, Cluster, fut)) %>%
+    mutate(
+        D = map(D, ~meta::metagen(TE = .x$ESTIMATE, seTE = .x$SE)),
+        D = map(
+            D, 
+            ~tibble(
+                cohort = c("Pooled_FE", "Pooled_RE"),
+                ESTIMATE = c(.x$TE.fixed, .x$TE.random), 
+                SE = c(.x$seTE.fixed, .x$seTE.random)
+            )
+        )
+    ) %>%
+    unnest(D)
+head(poollogratioest)
+```
+
+```{r}
+alllogratioest <- poollogratioest %>%
+    bind_rows(logratioest) %>%
+    mutate(
+        cohort = factor(
+            case_match(
+                cohort,
+                "ukb" ~ "UKB",
+                "maastricht" ~ "MS",
+                "rotterdam" ~ "RS",
+                "ghs" ~ "GHS",
+                .default = cohort
+            ),
+            levels = c("UKB", "MS", "RS", "GHS", "Pooled_FE", "Pooled_RE")
+        ),
+        PVALUE = 2*pnorm(-abs(ESTIMATE/SE)),
+        LOWERCI = ESTIMATE - qnorm(.975)*SE,
+        UPPERCI = ESTIMATE + qnorm(.975)*SE
+    ) %>%
+    transmute(
+        sex, outcome, Cluster, fut, cohort,
+        across(everything())
+    ) %>%
+    arrange(sex, outcome, Cluster, fut, cohort)
+head(alllogratioest)
+```
+
+```{r}
+write_tsv(alllogratioest, "../data/alllogratioest.tsv")
+```
+
+```{r}
+cluscolmap[cluscolmap$Cluster != "DHT",]
+```
+
+```{r}
+options(repr.plot.width = 6.5, repr.plot.height = 8)
+alllogratioest %>%
+    mutate(Cluster = factor(Cluster, levels = cluscolmap$Cluster)) %>%
+    ggplot(aes(ESTIMATE, reorder(cohort, desc(cohort)))) +
+    geom_vline(xintercept = 0, lty = "dashed") +
+    geom_linerange(aes(xmin = LOWERCI, xmax = UPPERCI)) +
+    geom_point(aes(shape = grepl("Pooled", cohort)), show.legend = FALSE) +
+    scale_shape_manual(values = c(20, 23)) +
+    ggh4x::facet_nested(
+        sex + Cluster ~ outcome + fut, 
+        scales = "free", independent = "x", space = "free_y",
+        strip = ggh4x::strip_nested(
+            background_y = ggh4x::elem_list_rect(
+                fill = alpha(
+                    c(
+                        "grey", "grey", 
+                        cluscolmap$ClusCol[cluscolmap$Cluster != "BC"],
+                        cluscolmap$ClusCol[!cluscolmap$Cluster %in% c("BC", "DHT")]
+                    ), 
+                    .8
+                )
+            ),
+            by_layer_y = FALSE
+        )
+    ) +
+    scale_x_continuous(n.breaks = 4, labels = \(x)round(x, 2)) +
+    labs(x = "Estimate\n95% CI", y = NULL) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5),
+        axis.text.y = element_text(size = 6)
+    )
+```
+
+Given that shifts also represent changes in biomarker values, we need to recreate all biomarker values that would cause the shift.
+
+### Effect of 10% shift in cluster probability from concordant to discordant clusters
+
+```{r}
+egfrcalc <- function(scr, sex, age){
+    scr <- scr / 88.42
+    alpha <- ((sex == "Female") * -0.241) + ((sex == "Male") * -0.302)
+    kappa <- ((sex == "Female") * 0.7) + ((sex == "Male") * 0.9)
+    creat_kappa <- scr / kappa
+    minkappa <- pmin(creat_kappa, 1) 
+    maxkappa <- pmax(creat_kappa, 1)
+    minkappa_alpha <- minkappa^alpha
+    maxkappa_exp <- maxkappa^(-1.200)
+    age_term <- 0.9938^age
+    sex_term <- ((sex == "Female") * 1.012) + ((sex == "Male") * 1) 
+    142 * minkappa_alpha * maxkappa_exp * age_term * sex_term
+}
+```
+
+```{r}
+shift10pc <- validclusmod %>%
+    transmute(
+        sex,
+        ResD = map(
+            clusmod,
+            function(CLUSMOD){
+                CLUSMOD %>%
+                    expand_grid(
+                        Cluster = CLUSMOD$validclus_name
+                    ) %>%
+                    mutate(
+                        toadd = case_when(
+                            Cluster == "BC" ~ 0,
+                            Cluster == validclus_name ~ .1,
+                            validclus_name == "BC" ~ -.1,
+                            TRUE ~ 0
+                        ),
+                        validclus_weights = validclus_weights + toadd
+                    ) %>%
+                    group_by(Cluster) %>%
+                    summarise(
+                        RGD = list(
+                            MGMM::rGMM(
+                                n = 5e5, 
+                                d = length(validclus_centers[[1]]),
+                                k = n(),
+                                pi = validclus_weights,
+                                means = validclus_centers, 
+                                covs = validclus_covmats
+                            ) %>%
+                                colMeans %>%
+                                round(2) %>%
+                                setNames(
+                                    names(validclus_centers[[1]])
+                                )
+                        )
+                    )
+            }
+        ),
+        NewD = pmap(
+            list(ResD, residmod, clusmod),
+            function(D, RESIDMOD, CLUSMOD){
+                D %>%
+                    mutate(
+                        predprobs = map(
+                            RGD, 
+                            ~{
+                                pdfs <- mapply(
+                                    function(mu, covmat){ 
+                                        mvtnorm::dmvnorm(
+                                            .x, mu, covmat
+                                        ) 
+                                    },
+                                    CLUSMOD$validclus_centers, 
+                                    CLUSMOD$validclus_covmats
+                                )
+                                L <- pdfs %*% diag(CLUSMOD$validclus_weights)
+                                colnames(L) <- CLUSMOD$validclus_name
+                                L / rowSums(L)
+                            }
+                        ),
+                        alrprobs = map(
+                            predprobs,
+                            ~{
+                                cclus <- colnames(.x) == "BC"
+                                alrp <- .x[,!cclus]/.x[,cclus]
+                                names(alrp) <- paste0("alrprob", names(alrp))
+                                t(alrp)
+                            }
+                        ),
+                        actualbmvals = map(
+                            RGD,
+                            ~tibble(
+                                Biomarker = names(.x), sdresidval = .x
+                            ) %>%
+                                inner_join(RESIDMOD, by = "Biomarker") %>%
+                                mutate(
+                                    sdresid = sdresidval * SDRes,
+                                    bmi = 30 * bmi,
+                                    age = 60 * age,
+                                    bmvalue = rowSums(pick(Intercept, bmi, age, sdresid))
+                                ) %>%
+                                {setNames(.$bmvalue, .$Biomarker)} %>%
+                                c(bmi = 30, age = 60) %>% t
+                        ),
+                        joindat = map2(actualbmvals, alrprobs, cbind)
+                    ) %>%
+                    transmute(Cluster, joindat = map(joindat, data.frame)) %>%
+                    unnest(joindat)
+            }
+        ),
+        NewD = map2(
+            NewD, sex,
+            ~mutate(
+                .x, 
+                lnegfr = log(egfrcalc(scr, .y, 60)),
+                lnegfrsq = lnegfr^2,
+                age_lnegfr = 60*lnegfr,
+                tchol = hdl + ldl + (tg/2.2),
+                age_tchol = 60*tchol,
+                age_sbp = 60*sbp,
+                age_hdl = 60*hdl,
+                age_fg = 60*fg
+            )
+        ),
+        ResD
+    )
+print(shift10pc)
+```
+
+```{r}
+shift10pc$NewD %>%
+    map(select, -starts_with("alrprob"), -bmi, -age)
+```
+
+```{r}
+shift10est <- survcoefd %>%
+    filter(model == "clus") %>%
+    inner_join(shift10pc, by = "sex") %>%
+    transmute(
+        cohort,
+        sex,
+        outcome,
+        fut,
+        estdat = pmap(
+            list(NewD, estimates, varcovmat),
+            function(D, BETAS, COVM){
+                Dmat <- as.matrix(select(D, -Cluster))
+                rownames(Dmat) <- D$Cluster
+                cclus <- rownames(Dmat) == "BC"
+                diffmat <- t(t(Dmat[!cclus,]) - Dmat[cclus,])
+                nm <- intersect(colnames(diffmat), names(BETAS))
+                covm <- COVM[nm,nm]
+                data.frame(
+                    Cluster = gsub("alrprob", "", rownames(diffmat)),
+                    estimate = drop(diffmat[,nm] %*% BETAS[nm]),
+                    se = apply(
+                        diffmat[,nm], 1,
+                        \(clus){ 
+                            sqrt(drop(clus %*% covm %*% clus))
+                        }
+                    )
+                )
+            }
+        )
+    ) %>%
+    unnest(estdat)
+head(shift10est)
+```
+
+```{r}
+poolshift10est <- shift10est %>%
+    nest(D = -c(sex, outcome, Cluster, fut)) %>%
+    mutate(
+        D = map(D, ~meta::metagen(TE = .x$estimate, seTE = .x$se)),
+        D = map(
+            D, 
+            ~tibble(
+                cohort = c("Pooled_FE", "Pooled_RE"),
+                estimate = c(.x$TE.fixed, .x$TE.random), 
+                se = c(.x$seTE.fixed, .x$seTE.random)
+            )
+        )
+    ) %>%
+    unnest(D)
+head(poolshift10est)
+```
+
+```{r}
+allshift10est <- poolshift10est %>%
+    bind_rows(shift10est) %>%
+    mutate(
+        cohort = factor(
+            case_match(
+                cohort,
+                "ukb" ~ "UKB",
+                "maastricht" ~ "MAS",
+                "rotterdam" ~ "RTD",
+                "ghs" ~ "GHS",
+                .default = cohort
+            ),
+            levels = c("UKB", "MAS", "RTD", "GHS", "Pooled_FE", "Pooled_RE")
+        ),
+        pval = 2*pnorm(-abs(estimate/se)),
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se)
+    ) %>%
+    transmute(
+        sex, outcome, Cluster, fut, cohort,
+        across(everything())
+    ) %>%
+    arrange(sex, outcome, Cluster, fut, cohort)
+head(allshift10est)
+```
+
+```{r}
+write_tsv(allshift10est, "../data/allshift10est.tsv")
+```
+
+```{r}
+options(repr.plot.width = 6.5, repr.plot.height = 8)
+allshift10est %>%
+    drop_na %>%
+    mutate(
+        Cluster = gsub("prob", "", Cluster),
+        Cluster = factor(Cluster, levels = cluscolmap$Cluster)
+    ) %>%
+    ggplot(aes(hr, reorder(cohort, desc(cohort)))) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(aes(xmin = lwr, xmax = upr)) +
+    geom_point(aes(shape = grepl("Pooled", cohort)), show.legend = FALSE) +
+    scale_shape_manual(values = c(20, 23)) +
+    ggh4x::facet_nested(
+        sex + Cluster ~ outcome + fut, 
+        scales = "free", independent = "x", space = "free_y",
+        strip = ggh4x::strip_nested(
+            background_y = ggh4x::elem_list_rect(
+                fill = alpha(
+                    c(
+                        "grey", "grey", 
+                        cluscolmap$ClusCol[cluscolmap$Cluster != "BC"],
+                        cluscolmap$ClusCol[!cluscolmap$Cluster %in% c("BC", "DHT")]
+                    ), 
+                    .8
+                )
+            ),
+            by_layer_y = FALSE
+        )
+    ) +
+    scale_x_continuous(n.breaks = 4, labels = \(x)round(x, 2)) +
+    labs(x = "HR", y = NULL) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5),
+        axis.text.y = element_text(size = 6)
+    )
+```
+
+```{r}
+options(repr.plot.width = 4, repr.plot.height = 5)
+poolshift10est %>%
+    mutate(
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se),
+        fut = factor(
+            paste0(fut, "yr"), 
+            levels = c("10yr", "5yr")
+        ),
+        cohort = gsub("Pooled_", "", cohort),
+        Cluster = gsub("prob", "", Cluster),
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster))
+    ) %>%
+    ggplot(aes(hr, interaction(fut, Cluster))) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(
+        aes(xmin = lwr, xmax = upr, group = cohort),
+        position = position_dodge(width = .5)
+    ) +
+    geom_point(
+        aes(group = cohort, color = cohort),
+        position = position_dodge(width = .5)
+    ) +
+    scale_y_discrete(guide = ggh4x::guide_axis_nested()) +
+    ggh4x::facet_nested(
+        sex ~ outcome, scales = "free",
+        independent = "x",
+        space = "free_y"
+    ) +
+    labs(x = "HR", y = NULL, color = "Pooling") +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5),
+        legend.position = "top"
+    )
+```
+
+```{r}
+options(repr.plot.width = 4, repr.plot.height = 4)
+poolshift10est %>%
+    filter(cohort == "Pooled_RE") %>%
+    mutate(
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se),
+        fut = factor(
+            paste0(fut, "yr"), 
+            levels = c("5yr", "10yr")
+        ),
+        Cluster = gsub("prob", "", Cluster),
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster))
+    ) %>%
+    ggplot(aes(hr, Cluster)) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(
+        aes(xmin = lwr, xmax = upr, group = fut),
+        position = position_dodge(width = .5)
+    ) +
+    geom_point(
+        aes(group = fut, color = fut),
+        position = position_dodge(width = .5)
+    ) +
+    ggh4x::facet_nested(
+        sex ~ outcome, scales = "free",
+        independent = "x",
+        space = "free_y"
+    ) +
+    labs(x = "HR", y = NULL, color = "Follow-up years") +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5),
+        legend.position = "top"
+    )
+```
+
+## Effect estimated by baseline model
+
+```{r}
+shift10basest <- survcoefd %>%
+    filter(model == "base") %>%
+    inner_join(shift10pc, by = "sex") %>%
+    transmute(
+        cohort,
+        sex,
+        outcome,
+        fut,
+        estdat = pmap(
+            list(NewD, estimates, varcovmat),
+            function(D, BETAS, COVM){
+                Dmat <- as.matrix(select(D, -Cluster))
+                rownames(Dmat) <- D$Cluster
+                cclus <- rownames(Dmat) == "BC"
+                diffmat <- t(t(Dmat[!cclus,]) - Dmat[cclus,])
+                nm <- intersect(colnames(diffmat), names(BETAS))
+                covm <- COVM[nm,nm]
+                data.frame(
+                    Cluster = gsub("alrprob", "", rownames(diffmat)),
+                    estimate = drop(diffmat[,nm] %*% BETAS[nm]),
+                    se = apply(
+                        diffmat[,nm], 1,
+                        \(clus){ 
+                            sqrt(drop(clus %*% covm %*% clus))
+                        }
+                    )
+                )
+            }
+        )
+    ) %>%
+    unnest(estdat)
+head(shift10basest)
+```
+
+```{r}
+poolshift10basest <- shift10basest %>%
+    nest(D = -c(sex, outcome, Cluster, fut)) %>%
+    mutate(
+        D = map(D, ~meta::metagen(TE = .x$estimate, seTE = .x$se)),
+        D = map(
+            D, 
+            ~tibble(
+                cohort = c("Pooled_FE", "Pooled_RE"),
+                estimate = c(.x$TE.fixed, .x$TE.random), 
+                se = c(.x$seTE.fixed, .x$seTE.random)
+            )
+        )
+    ) %>%
+    unnest(D)
+head(poolshift10basest)
+```
+
+```{r}
+allshift10basest <- poolshift10basest %>%
+    bind_rows(shift10basest) %>%
+    mutate(
+        cohort = factor(
+            case_match(
+                cohort,
+                "ukb" ~ "UKB",
+                "maastricht" ~ "MS",
+                "rotterdam" ~ "RS",
+                "ghs" ~ "GHS",
+                .default = cohort
+            ),
+            levels = c("UKB", "MS", "RS", "GHS", "Pooled_FE", "Pooled_RE")
+        ),
+        pval = 2*pnorm(-abs(estimate/se)),
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se)
+    ) %>%
+    transmute(
+        sex, outcome, Cluster, fut, cohort,
+        across(everything())
+    ) %>%
+    arrange(sex, outcome, Cluster, fut, cohort)
+head(allshift10basest)
+```
+
+```{r}
+options(repr.plot.width = 4, repr.plot.height = 4)
+poolshift10basest %>%
+    filter(cohort == "Pooled_RE") %>%
+    mutate(
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se),
+        fut = factor(
+            paste0(fut, "yr"), 
+            levels = c("5yr", "10yr")
+        ),
+        Cluster = gsub("prob", "", Cluster),
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster))
+    ) %>%
+    ggplot(aes(hr, Cluster)) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(
+        aes(xmin = lwr, xmax = upr, group = fut),
+        position = position_dodge(width = .5)
+    ) +
+    geom_point(
+        aes(group = fut, color = fut),
+        position = position_dodge(width = .5)
+    ) +
+    ggh4x::facet_nested(
+        sex ~ outcome, scales = "free",
+        independent = "x",
+        space = "free_y"
+    ) +
+    labs(x = "HR", y = NULL, color = "Follow-up years") +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5),
+        legend.position = "top"
+    )
+```
+
+## Shift of 50% from concordant to discordant
+
+```{r}
+shift50pc <- validclusmod %>%
+    transmute(
+        sex,
+        ResD = map(
+            clusmod,
+            function(CLUSMOD){
+                CLUSMOD %>%
+                    expand_grid(
+                        Cluster = CLUSMOD$validclus_name
+                    ) %>%
+                    mutate(
+                        toadd = case_when(
+                            Cluster == "BC" ~ 0,
+                            Cluster == validclus_name ~ .5,
+                            validclus_name == "BC" ~ -.5,
+                            TRUE ~ 0
+                        ),
+                        validclus_weights = validclus_weights + toadd
+                    ) %>%
+                    group_by(Cluster) %>%
+                    summarise(
+                        RGD = list(
+                            MGMM::rGMM(
+                                n = 5e5, 
+                                d = length(validclus_centers[[1]]),
+                                k = n(),
+                                pi = validclus_weights,
+                                means = validclus_centers, 
+                                covs = validclus_covmats
+                            ) %>%
+                                colMeans %>%
+                                round(2) %>%
+                                setNames(
+                                    names(validclus_centers[[1]])
+                                )
+                        )
+                    )
+            }
+        ),
+        NewD = pmap(
+            list(ResD, residmod, clusmod),
+            function(D, RESIDMOD, CLUSMOD){
+                D %>%
+                    mutate(
+                        predprobs = map(
+                            RGD, 
+                            ~{
+                                pdfs <- mapply(
+                                    function(mu, covmat){ 
+                                        mvtnorm::dmvnorm(
+                                            .x, mu, covmat
+                                        ) 
+                                    },
+                                    CLUSMOD$validclus_centers, 
+                                    CLUSMOD$validclus_covmats
+                                )
+                                L <- pdfs %*% diag(CLUSMOD$validclus_weights)
+                                colnames(L) <- CLUSMOD$validclus_name
+                                L / rowSums(L)
+                            }
+                        ),
+                        alrprobs = map(
+                            predprobs,
+                            ~{
+                                cclus <- colnames(.x) == "BC"
+                                alrp <- .x[,!cclus]/.x[,cclus]
+                                names(alrp) <- paste0("alrprob", names(alrp))
+                                t(alrp)
+                            }
+                        ),
+                        actualbmvals = map(
+                            RGD,
+                            ~tibble(
+                                Biomarker = names(.x), sdresidval = .x
+                            ) %>%
+                                inner_join(RESIDMOD, by = "Biomarker") %>%
+                                mutate(
+                                    sdresid = sdresidval * SDRes,
+                                    bmi = 30 * bmi,
+                                    age = 60 * age,
+                                    bmvalue = rowSums(pick(Intercept, bmi, age, sdresid))
+                                ) %>%
+                                {setNames(.$bmvalue, .$Biomarker)} %>%
+                                c(bmi = 30, age = 60) %>% t
+                        ),
+                        joindat = map2(actualbmvals, alrprobs, cbind)
+                    ) %>%
+                    transmute(Cluster, joindat = map(joindat, data.frame)) %>%
+                    unnest(joindat)
+            }
+        ),
+        NewD = map2(
+            NewD, sex,
+            ~mutate(
+                .x, 
+                lnegfr = log(egfrcalc(scr, .y, 60)),
+                lnegfrsq = lnegfr^2,
+                age_lnegfr = 60*lnegfr,
+                tchol = hdl + ldl + (tg/2.2),
+                age_tchol = 60*tchol,
+                age_sbp = 60*sbp,
+                age_hdl = 60*hdl,
+                age_fg = 60*fg
+            )
+        ),
+        ResD
+    )
+print(shift50pc)
+```
+
+```{r}
+shift50pc$NewD %>%
+    map(select, -starts_with("alrprob"), -bmi, -age)
+```
+
+```{r}
+shift50est <- survcoefd %>%
+    filter(model == "clus") %>%
+    inner_join(shift50pc, by = "sex") %>%
+    transmute(
+        cohort,
+        sex,
+        outcome,
+        fut,
+        estdat = pmap(
+            list(NewD, estimates, varcovmat),
+            function(D, BETAS, COVM){
+                Dmat <- as.matrix(select(D, -Cluster))
+                rownames(Dmat) <- D$Cluster
+                cclus <- rownames(Dmat) == "BC"
+                diffmat <- t(t(Dmat[!cclus,]) - Dmat[cclus,])
+                nm <- intersect(colnames(diffmat), names(BETAS))
+                covm <- COVM[nm,nm]
+                data.frame(
+                    Cluster = gsub("alrprob", "", rownames(diffmat)),
+                    estimate = drop(diffmat[,nm] %*% BETAS[nm]),
+                    se = apply(
+                        diffmat[,nm], 1,
+                        \(clus){ 
+                            sqrt(drop(clus %*% covm %*% clus))
+                        }
+                    )
+                )
+            }
+        )
+    ) %>%
+    unnest(estdat)
+head(shift50est)
+```
+
+```{r}
+poolshift50est <- shift50est %>%
+    nest(D = -c(sex, outcome, Cluster, fut)) %>%
+    mutate(
+        D = map(D, ~meta::metagen(TE = .x$estimate, seTE = .x$se)),
+        D = map(
+            D, 
+            ~tibble(
+                cohort = c("Pooled_FE", "Pooled_RE"),
+                estimate = c(.x$TE.fixed, .x$TE.random), 
+                se = c(.x$seTE.fixed, .x$seTE.random)
+            )
+        )
+    ) %>%
+    unnest(D)
+head(poolshift50est)
+```
+
+```{r}
+options(repr.plot.width = 4, repr.plot.height = 5)
+poolshift50est %>%
+    mutate(
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se),
+        fut = factor(
+            paste0(fut, "yr"), 
+            levels = c("10yr", "5yr")
+        ),
+        cohort = gsub("Pooled_", "", cohort),
+        Cluster = gsub("prob", "", Cluster),
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster))
+    ) %>%
+    ggplot(aes(hr, interaction(fut, Cluster))) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(
+        aes(xmin = lwr, xmax = pmin(11, upr), group = cohort),
+        position = position_dodge(width = .5)
+    ) +
+    geom_point(
+        aes(group = cohort, color = cohort),
+        position = position_dodge(width = .5)
+    ) +
+    scale_y_discrete(guide = ggh4x::guide_axis_nested()) +
+    ggh4x::facet_nested(
+        sex ~ outcome, scales = "free",
+        independent = "x",
+        space = "free_y"
+    ) +
+    labs(x = "HR", y = NULL, color = "Follow-up time") +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5),
+        legend.position = "top"
+    )
+```
+
+```{r}
+allshift50est <- poolshift50est %>%
+    bind_rows(shift50est) %>%
+    mutate(
+        cohort = factor(
+            case_match(
+                cohort,
+                "ukb" ~ "UKB",
+                "maastricht" ~ "MS",
+                "rotterdam" ~ "RS",
+                "ghs" ~ "GHS",
+                .default = cohort
+            ),
+            levels = c("UKB", "MS", "RS", "GHS", "Pooled_FE", "Pooled_RE")
+        ),
+        pval = 2*pnorm(-abs(estimate/se)),
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se)
+    ) %>%
+    transmute(
+        sex, outcome, Cluster, fut, cohort,
+        across(everything())
+    ) %>%
+    arrange(sex, outcome, Cluster, fut, cohort)
+head(allshift50est)
+```
+
+```{r}
+write_tsv(allshift50est, "../data/allshift50est.tsv")
+```
+
+```{r}
+options(repr.plot.width = 8, repr.plot.height = 8)
+allshift50est %>%
+    drop_na %>%
+    mutate(
+        Cluster = gsub("prob", "", Cluster),
+        Cluster = factor(Cluster, levels = cluscolmap$Cluster)
+    ) %>%
+    ggplot(aes(hr, reorder(cohort, desc(cohort)))) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(aes(xmin = lwr, xmax = upr)) +
+    geom_point(aes(shape = grepl("Pooled", cohort)), show.legend = FALSE) +
+    scale_shape_manual(values = c(20, 23)) +
+    ggh4x::facet_nested(
+        sex+outcome+fut~Cluster, scales = "free", independent = "x",
+        space = "free_y",
+        strip = ggh4x::strip_nested(
+            background_x = ggh4x::elem_list_rect(
+                fill = alpha(
+                    cluscolmap$ClusCol[cluscolmap$Cluster != "BC"],
+                    .8
+                )
+            )
+        )
+    ) +
+    scale_x_continuous(n.breaks = 4, labels = \(x)round(x, 2)) +
+    labs(x = "HR", y = NULL) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5)
+    )
+```
+
+```{r}
+options(repr.plot.width = 4, repr.plot.height = 4)
+poolshift50est %>%
+    filter(cohort == "Pooled_RE") %>%
+    mutate(
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se),
+        fut = factor(
+            paste0(fut, "yr"), 
+            levels = c("5yr", "10yr")
+        ),
+        Cluster = gsub("prob", "", Cluster),
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster))
+    ) %>%
+    ggplot(aes(hr, Cluster)) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(
+        aes(xmin = lwr, xmax = upr, group = fut),
+        position = position_dodge(width = .5)
+    ) +
+    geom_point(
+        aes(group = fut, color = fut),
+        position = position_dodge(width = .5)
+    ) +
+    ggh4x::facet_nested(
+        sex ~ outcome, scales = "free",
+        independent = "x",
+        space = "free_y"
+    ) +
+    labs(x = "HR", y = NULL, color = "Follow-up years") +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5),
+        legend.position = "top"
+    )
+```
+
+## Effect of 50% shift estimated by baseline model
+
+```{r}
+shift50basest <- survcoefd %>%
+    filter(model == "base") %>%
+    inner_join(shift50pc, by = "sex") %>%
+    transmute(
+        cohort,
+        sex,
+        outcome,
+        fut,
+        estdat = pmap(
+            list(NewD, estimates, varcovmat),
+            function(D, BETAS, COVM){
+                Dmat <- as.matrix(select(D, -Cluster))
+                rownames(Dmat) <- D$Cluster
+                cclus <- rownames(Dmat) == "BC"
+                diffmat <- t(t(Dmat[!cclus,]) - Dmat[cclus,])
+                nm <- intersect(colnames(diffmat), names(BETAS))
+                covm <- COVM[nm,nm]
+                data.frame(
+                    Cluster = gsub("alrprob", "", rownames(diffmat)),
+                    estimate = drop(diffmat[,nm] %*% BETAS[nm]),
+                    se = apply(
+                        diffmat[,nm], 1,
+                        \(clus){ 
+                            sqrt(drop(clus %*% covm %*% clus))
+                        }
+                    )
+                )
+            }
+        )
+    ) %>%
+    unnest(estdat)
+head(shift50basest)
+```
+
+```{r}
+poolshift50basest <- shift50basest %>%
+    nest(D = -c(sex, outcome, Cluster, fut)) %>%
+    mutate(
+        D = map(D, ~meta::metagen(TE = .x$estimate, seTE = .x$se)),
+        D = map(
+            D, 
+            ~tibble(
+                cohort = c("Pooled_FE", "Pooled_RE"),
+                estimate = c(.x$TE.fixed, .x$TE.random), 
+                se = c(.x$seTE.fixed, .x$seTE.random)
+            )
+        )
+    ) %>%
+    unnest(D)
+head(poolshift50basest)
+```
+
+```{r}
+allshift50basest <- poolshift50basest %>%
+    bind_rows(shift50basest) %>%
+    mutate(
+        cohort = factor(
+            case_match(
+                cohort,
+                "ukb" ~ "UKB",
+                "maastricht" ~ "MS",
+                "rotterdam" ~ "RS",
+                "ghs" ~ "GHS",
+                .default = cohort
+            ),
+            levels = c("UKB", "MS", "RS", "GHS", "Pooled_FE", "Pooled_RE")
+        ),
+        pval = 2*pnorm(-abs(estimate/se)),
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se)
+    ) %>%
+    transmute(
+        sex, outcome, Cluster, fut, cohort,
+        across(everything())
+    ) %>%
+    arrange(sex, outcome, Cluster, fut, cohort)
+head(allshift50basest)
+```
+
+```{r}
+options(repr.plot.width = 4, repr.plot.height = 4)
+poolshift50basest %>%
+    filter(cohort == "Pooled_RE") %>%
+    mutate(
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se),
+        fut = factor(
+            paste0(fut, "yr"), 
+            levels = c("5yr", "10yr")
+        ),
+        Cluster = gsub("prob", "", Cluster),
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster))
+    ) %>%
+    ggplot(aes(hr, Cluster)) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(
+        aes(xmin = lwr, xmax = upr, group = fut),
+        position = position_dodge(width = .5)
+    ) +
+    geom_point(
+        aes(group = fut, color = fut),
+        position = position_dodge(width = .5)
+    ) +
+    ggh4x::facet_nested(
+        sex ~ outcome, scales = "free",
+        independent = "x",
+        space = "free_y"
+    ) +
+    labs(x = "HR", y = NULL, color = "Follow-up years") +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5),
+        legend.position = "top"
+    )
+```
+
+### Mapping the 50% shift (visible in the map)
+
+```{r}
+umapmoddf <- tibble(sex = c("Female", "Male")) %>%
+    mutate(
+        umapmod = map(
+            sex, 
+            ~uwot::load_uwot(
+                paste0("../data/ukb/umapmod_", .x)
+            )
+        )
+    )
+print(umapmoddf)
+```
+
+```{r}
+shift50pcmap <- shift50pc %>%
+    inner_join(umapmoddf) %>%
+    transmute(
+        sex,
+        CoordUMAP = map2(
+            ResD, umapmod,
+            function(RESD, UMAPMOD){
+                D <- RESD %>%
+                    mutate(
+                        RGD = map(RGD, ~data.frame(t(.x)))
+                    ) %>%
+                    unnest(RGD)
+                data.frame(
+                    Cluster = D$Cluster,
+                    uwot::umap_transform(select(D, -Cluster), UMAPMOD)
+                )
+            }
+        )
+    ) %>%
+    unnest(CoordUMAP)
+shift50pcmap
+```
+
+```{r}
+shift50pcmapdir <- shift50pcmap %>%
+    pivot_wider(names_from = Cluster, values_from = c(X1, X2)) %>%
+    pivot_longer(-c(sex, X1_BC, X2_BC), values_drop_na = TRUE,
+                 names_to = c(".value", "Cluster"), names_sep = "_")
+shift50pcmapdir
+```
+
+```{r}
+embeddf <- umapmoddf %>%
+    mutate(umapmod = map(umapmod, ~data.frame(.x$embedding))) %>%
+    unnest(umapmod)
+head(embeddf)
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 3)
+embeddf %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(shape = ".", alpha = .1) +
+    facet_wrap(~sex) +
+    geom_segment(data = shift50pcmapdir, aes(xend = X1_BC, yend = X2_BC, color = Cluster)) +
+    geom_point(data = shift50pcmapdir, aes(color = Cluster), size = .2) +
+    geom_point(data = unique(transmute(shift50pcmapdir, sex, X1 = X1_BC, X2 = X2_BC)),
+               shape = 21, fill = "white", color = "black")
+```
+
+## Full shift from concordant to discordant clusters
+
+```{r}
+fullshiftdat <- validclusmod %>%
+    transmute(
+        sex,
+        NewD = pmap(
+            list(residmod, clusmod, sex),
+            function(RESIDMOD, CLUSMOD, SEX){
+                X <- transmute(
+                    RESIDMOD,
+                    Intercept,
+                    bmi = bmi*30, 
+                    age = age*60
+                )
+                X <- rowSums(X)
+                bmnms <- RESIDMOD$Biomarker
+                names(X) <- bmnms
+                sds <- RESIDMOD$SDRes
+                mus <- CLUSMOD$validclus_centers
+                mus <- map(mus, function(mu){ mu[bmnms] })
+                clusd <- t((do.call(cbind, mus) * sds) + X)
+                clusd <- cbind(
+                    clusd, 
+                    tchol = clusd[,"hdl"] + clusd[,"ldl"] + (clusd[,"tg"]/2.2),
+                    age_sbp = 60*clusd[,"sbp"],
+                    age_hdl = 60*clusd[,"hdl"],
+                    age_fg = 60*clusd[,"fg"],
+                    lnegfr = log(egfrcalc(clusd[,"scr"], SEX, 60))
+                )
+                clusd <- cbind(
+                    clusd,
+                    age_tchol = 60*clusd[,"tchol"],
+                    lnegfrsq = clusd[,"lnegfr"]^2,
+                    age_lnegfr = 60*clusd[,"lnegfr"]
+                )
+                RESIDDF <- do.call(rbind, mus)
+                covmats <- CLUSMOD$validclus_covmats
+                covmats <- map(covmats, function(covmat){ covmat[bmnms, bmnms] })
+                wts <- CLUSMOD$validclus_weights
+                pdfs <- mapply(
+                    function(mu, covmat){ mvtnorm::dmvnorm(RESIDDF, mu, covmat) },
+                    mus, covmats
+                )
+                L <- pdfs %*% diag(wts)
+                probd <- L / rowSums(L)
+                clusnm <- CLUSMOD$validclus_name
+                colnames(probd) <- rownames(probd) <- paste0("alrprob", clusnm)
+                cclus <- colnames(probd) == "alrprobBC"
+                alrprobd <- log(t(t(probd[,!cclus]) / probd[,cclus]))
+                cbind(clusd, alrprobd)
+            }
+        )
+    )
+print(fullshiftdat)
+```
+
+```{r}
+fullshiftest <- survcoefd %>%
+    inner_join(fullshiftdat, by = "sex") %>%
+    filter(model == "clus") %>%
+    transmute(
+        cohort,
+        sex,
+        outcome,
+        fut,
+        estdat = pmap(
+            list(NewD, estimates, varcovmat),
+            function(CLUSD, BETAS, COVM){
+                cclus <- rownames(CLUSD) == "alrprobBC"
+                D <- t(t(CLUSD[!cclus,]) - CLUSD[cclus,])
+                nm <- intersect(colnames(D), names(BETAS))
+                covm <- COVM[nm,nm]
+                data.frame(
+                    Cluster = gsub("alrprob", "", rownames(D)),
+                    estimate = drop(D[,nm] %*% BETAS[nm]),
+                    se = apply(
+                        D[,nm], 1,
+                        \(clus){ 
+                            sqrt(drop(clus %*% covm %*% clus))
+                        }
+                    )
+                )
+            }
+        )
+    ) %>%
+    unnest(estdat)
+head(fullshiftest)
+```
+
+```{r}
+poolfullshiftest <- fullshiftest  %>%
+    nest(D = -c(sex, outcome, Cluster, fut)) %>%
+    mutate(
+        D = map(D, ~meta::metagen(TE = .x$estimate, seTE = .x$se)),
+        D = map(
+            D, 
+            ~tibble(
+                cohort = c("Pooled_FE", "Pooled_RE"),
+                estimate = c(.x$TE.fixed, .x$TE.random), 
+                se = c(.x$seTE.fixed, .x$seTE.random)
+            )
+        )
+    ) %>%
+    unnest(D)
+head(poolfullshiftest)
+```
+
+```{r}
+options(repr.plot.width = 4, repr.plot.height = 5)
+poolfullshiftest %>%
+    filter(cohort == "Pooled_RE") %>%
+    mutate(
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se),
+        fut = factor(
+            paste0(fut, "yr"), 
+            levels = c("5yr", "10yr")
+        ),
+        Cluster = gsub("prob", "", Cluster),
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster))
+    ) %>%
+    ggplot(aes(hr, Cluster)) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(
+        aes(xmin = lwr, xmax = upr, group = fut),
+        position = position_dodge(width = .5)
+    ) +
+    geom_point(
+        aes(group = fut, color = fut),
+        position = position_dodge(width = .5)
+    ) +
+    ggh4x::facet_nested(
+        sex ~ outcome, scales = "free",
+        independent = "x",
+        space = "free_y"
+    ) +
+    labs(x = "HR", y = NULL, color = "Follow-up years") +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5),
+        legend.position = "top"
+    )
+```
+
+```{r}
+allfullshiftest <- poolfullshiftest %>%
+    bind_rows(fullshiftest)
+```
+
+```{r}
+allfullshiftest$cohort %>% table(useNA = "always")
+```
+
+```{r}
+allfullshiftest <- poolfullshiftest %>%
+    bind_rows(fullshiftest) %>%
+    mutate(
+        cohort = factor(
+            case_match(
+                cohort,
+                "ukb" ~ "UKB",
+                "maastricht" ~ "MS",
+                "rotterdam" ~ "RS",
+                "ghs" ~ "GHS",
+                .default = cohort
+            ),
+            levels = c("UKB", "MS", "RS", "GHS", "Pooled_FE", "Pooled_RE")
+        ),
+        pval = 2*pnorm(-abs(estimate/se)),
+        hr = exp(estimate),
+        lwr = exp(estimate - qnorm(.975)*se),
+        upr = exp(estimate + qnorm(.975)*se)
+    ) %>%
+    transmute(
+        sex, outcome, Cluster, fut, cohort,
+        across(everything())
+    ) %>%
+    arrange(sex, outcome, Cluster, fut, cohort)
+head(allfullshiftest)
+```
+
+```{r}
+write_tsv(allfullshiftest, "../data/allfullshiftest.tsv")
+```
+
+```{r}
+options(repr.plot.width = 8, repr.plot.height = 8)
+allfullshiftest %>%
+    drop_na %>%
+    mutate(
+        Cluster = gsub("prob", "", Cluster),
+        Cluster = factor(Cluster, levels = cluscolmap$Cluster)
+    ) %>%
+    ggplot(aes(hr, reorder(cohort, desc(cohort)))) +
+    geom_vline(xintercept = 1, lty = "dashed") +
+    geom_linerange(aes(xmin = lwr, xmax = upr)) +
+    geom_point(aes(shape = cohort == "Pooled"), show.legend = FALSE) +
+    scale_shape_manual(values = c(20, 23)) +
+    ggh4x::facet_nested(
+        sex+outcome+fut~Cluster, scales = "free", independent = "x",
+        space = "free_y",
+        strip = ggh4x::strip_nested(
+            background_x = ggh4x::elem_list_rect(
+                fill = alpha(
+                    cluscolmap$ClusCol[cluscolmap$Cluster != "BC"],
+                    .8
+                )
+            )
+        )
+    ) +
+    scale_x_continuous(n.breaks = 4, labels = \(x)round(x, 2)) +
+    labs(x = "Risk relative to concordant cluster", y = NULL) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5)
+    )
+```
+
+---
+
+## Adequacy index by cluster
+
+```{r}
+adeqindclus <- result_long %>%
+    filter(element_name == "AdeqIndByClus") %>%
+    select(-element_name) %>%
+    unnest(element_value)
+head(adeqindclus)
+```
+
+```{r}
+write_tsv(adeqindclus, "../data/adeqindclus.tsv")
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 5.5)
+adeqindclus %>%
+    mutate(
+        cohort = factor(
+            case_match(
+                cohort,
+                "ukb" ~ "UKB",
+                "maastricht" ~ "MS",
+                "rotterdam" ~ "RS",
+                "ghs" ~ "GHS"
+            ),
+            levels = c("UKB", "MS", "RS", "GHS")
+        )
+    ) %>%
+    ggplot(aes(1 - AdeqInd, Cluster)) +
+    geom_col() +
+    ggh4x::facet_nested(
+        cohort + sex ~ outcome + fut, 
+        scales = "free", independent = "x"
+    ) +
+    scale_x_continuous(n.breaks = 3, labels = \(x)100*x) +
+    labs(x = "Added VarExp (%)", y = NULL) +
+    theme_bw() +
+    theme(
+        axis.text = element_text(size = 5)
+    )
+```
+
+---
+
+## Decision curves
+
+```{r}
+dcadat <- result_long %>%
+    filter(element_name == "DCARes") %>%
+    select(-element_name) %>%
+    unnest(element_value)
+head(dcadat)
+```
+
+```{r}
+write_tsv(dcadat, "../data/dcadat.tsv")
+```
+
+```{r}
+dcadat %>%
+    filter(outcome == "MACE", fut == 10, threshold == 0.1, pred %in% c("base", "clus")) %>%
+    mutate(
+        across(c(net_benefit, net_intervention_avoided), ~round(.x * 1e4))
+    ) %>%
+    group_by(cohort, sex) %>%
+    mutate(across(c(net_benefit, net_intervention_avoided), diff, .names = "{.col}_d"))
+```
+
+```{r}
+dcadat %>%
+    filter(outcome == "MACE", fut == 5, threshold == 0.1, pred %in% c("base", "clus")) %>%
+    mutate(
+        across(c(net_benefit, net_intervention_avoided), ~round(.x * 1e4))
+    ) %>%
+    group_by(cohort, sex) %>%
+    mutate(across(c(net_benefit, net_intervention_avoided), diff, .names = "{.col}_d"))
+```
+
+```{r}
+dcadat %>%
+    filter(outcome == "DM", fut == 10, threshold == 0.15, pred %in% c("base", "clus")) %>%
+    mutate(
+        across(c(net_benefit, net_intervention_avoided), ~round(.x * 1e4))
+    ) %>%
+    group_by(cohort, sex) %>%
+    mutate(across(c(net_benefit, net_intervention_avoided), diff, .names = "{.col}_d"))
+```
+
+```{r}
+dcadat %>%
+    filter(outcome == "DM", fut == 10, threshold == max(threshold), pred %in% c("base", "clus")) %>%
+    mutate(
+        across(c(net_benefit, net_intervention_avoided), ~round(.x * 1e4))
+    ) %>%
+    group_by(cohort, sex) %>%
+    mutate(across(c(net_benefit, net_intervention_avoided), diff, .names = "{.col}_d"))
+```
+
+```{r}
+options(repr.plot.width = 8, repr.plot.height = 4.5)
+dcadat %>%
+    mutate(
+        cohort = factor(
+            case_match(
+                cohort,
+                "ukb" ~ "UKB",
+                "maastricht" ~ "MS",
+                "rotterdam" ~ "RS",
+                "ghs" ~ "GHS"
+            ),
+            levels = c("UKB", "MS", "RS", "GHS")
+        ),
+        pred = factor(
+            case_match(
+                pred,
+                "all" ~ "All", 
+                "none" ~ "None",
+                "base" ~ "Base", 
+                "clus" ~ "Base + Clusters"
+            ),
+            levels = c("All", "None", "Base", "Base + Clusters")
+        )
+    ) %>%
+    ggplot(aes(threshold, net_benefit)) +
+    geom_smooth(aes(group = pred, color = pred), 
+                method = "loess", se = FALSE, formula = y~x,
+                linewidth = .25) +
+    ggh4x::facet_nested(cohort ~ sex + outcome + fut, scales = "free", independent = "y") +
+    coord_cartesian(xlim = c(0, .2), ylim = c(-0.001,NA)) +
+    scale_x_continuous(
+        breaks = c(0, .05, .1, .15, .2), 
+        labels = function(x){ ifelse(x == 0, "0", 100 * x) }
+    ) +
+    scale_y_continuous(labels = function(x){1000 * x}) +
+    labs(x = "Threshold probability (%)", y = "Net benefit per 1000") +
+    theme_bw() +
+    theme(
+        legend.position = "top", 
+        legend.title = element_blank(),
+        axis.text = element_text(size = 4)
+    )
+```
+
+```{r}
+dcamean <- dcadat %>%
+    group_by(sex, outcome, fut, pred, threshold) %>%
+    summarise(across(c(net_benefit, net_intervention_avoided), mean), .groups = "drop")
+head(dcamean)
+```
+
+```{r}
+dcamean %>%
+    filter(outcome == "MACE", fut == 10, threshold == 0.1, pred %in% c("base", "clus")) %>%
+    mutate(
+        across(c(net_benefit, net_intervention_avoided), ~round(.x * 1e4))
+    ) %>%
+    group_by(sex) %>%
+    mutate(across(c(net_benefit, net_intervention_avoided), diff, .names = "{.col}_d"))
+```
+
+```{r}
+dcamean %>%
+    filter(outcome == "MACE", fut == 5, threshold == 0.1, pred %in% c("base", "clus")) %>%
+    mutate(
+        across(c(net_benefit, net_intervention_avoided), ~round(.x * 1e4))
+    ) %>%
+    group_by(sex) %>%
+    mutate(across(c(net_benefit, net_intervention_avoided), diff, .names = "{.col}_d"))
+```
+
+```{r}
+dcamean %>%
+    filter(outcome == "DM", fut == 10, threshold == 0.1, pred %in% c("base", "clus")) %>%
+    mutate(
+        across(c(net_benefit, net_intervention_avoided), ~round(.x * 1e4))
+    ) %>%
+    group_by(sex) %>%
+    mutate(across(c(net_benefit, net_intervention_avoided), diff, .names = "{.col}_d"))
+```
+
+```{r}
+dcamean %>%
+    filter(outcome == "DM", fut == 5, threshold == 0.1, pred %in% c("base", "clus")) %>%
+    mutate(
+        across(c(net_benefit, net_intervention_avoided), ~round(.x * 1e4))
+    ) %>%
+    group_by(sex) %>%
+    mutate(across(c(net_benefit, net_intervention_avoided), diff, .names = "{.col}_d"))
+```
+
+```{r}
+options(repr.plot.width = 7, repr.plot.height = 4.5)
+dcamean %>%
+    mutate(
+        pred = factor(
+            case_match(
+                pred,
+                "all" ~ "All", 
+                "none" ~ "None",
+                "base" ~ "Base", 
+                "clus" ~ "Base + Profiles"
+            ),
+            levels = c("All", "None", "Base", "Base + Profiles")
+        )
+    ) %>%
+    ggplot(aes(threshold, net_benefit)) +
+    geom_smooth(aes(group = pred, color = pred), 
+                method = "loess", se = FALSE, formula = y~x,
+                linewidth = .25) +
+    ggh4x::facet_nested(sex ~ outcome + fut, scales = "free", independent = "y") +
+    coord_cartesian(xlim = c(0, .15), ylim = c(-0.001,NA)) +
+    scale_x_continuous(
+        breaks = c(0, .05, .1, .15), 
+        labels = function(x){ ifelse(x == 0, "0", 100 * x) }
+    ) +
+    scale_y_continuous(labels = function(x){10000 * x}) +
+    labs(x = "Threshold probability (%)", y = "Net benefit per 10,000") +
+    theme_bw() +
+    theme(
+        legend.position = "top", 
+        legend.title = element_blank(),
+        axis.text = element_text(size = 4)
+    )
+```
+
+```{r}
+options(repr.plot.width = 8, repr.plot.height = 4.5)
+dcamean %>%
+    mutate(
+        pred = factor(
+            case_match(
+                pred,
+                "all" ~ "All", 
+                "none" ~ "None",
+                "base" ~ "Base", 
+                "clus" ~ "Base + Clusters"
+            ),
+            levels = c("All", "None", "Base", "Base + Clusters")
+        )
+    ) %>%
+    ggplot(aes(threshold, net_intervention_avoided)) +
+    geom_smooth(aes(group = pred, color = pred), 
+                method = "loess", se = FALSE, formula = y~x,
+                linewidth = .25) +
+    ggh4x::facet_nested(sex ~ outcome + fut, scales = "free", independent = "y") +
+    coord_cartesian(xlim = c(0, .2), ylim = c(-0.001,NA)) +
+    scale_x_continuous(
+        breaks = c(0, .05, .1, .15, .2), 
+        labels = function(x){ ifelse(x == 0, "0", 100 * x) }
+    ) +
+    scale_y_continuous(labels = function(x){10000 * x}) +
+    labs(x = "Threshold probability (%)", y = "Net interventions avoided per 10,000") +
+    theme_bw() +
+    theme(
+        legend.position = "top", 
+        legend.title = element_blank(),
+        axis.text = element_text(size = 4)
+    )
+```
+
+---
+
+## DCA by cluster
+
+```{r}
+dcadatclus <- result_long %>%
+    filter(element_name == "DCAClusREs") %>%
+    select(-element_name) %>%
+    unnest(element_value)
+head(dcadatclus)
+```
+
+```{r}
+write_tsv(dcadatclus, "../data/dcadatclus.tsv")
+```
+
+```{r}
+dcadatclusmean <- dcadatclus %>%
+    group_by(sex, outcome, fut, Cluster, pred, threshold) %>%
+    summarise(across(c(net_benefit, net_intervention_avoided), mean), .groups = "drop")
+head(dcadatclusmean)
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 10)
+dcadatclusmean %>%
+    mutate(
+        pred = factor(
+            case_match(
+                pred,
+                "all" ~ "All", 
+                "none" ~ "None",
+                "base" ~ "Base", 
+                "clus" ~ "Base + Profiles"
+            ),
+            levels = c("All", "None", "Base", "Base + Profiles")
+        ),
+        Cluster = gsub("prob", "", Cluster),
+        Cluster = factor(Cluster, levels = cluscolmap$Cluster)
+    ) %>%
+    ggplot(aes(threshold, net_benefit)) +
+    geom_smooth(aes(group = pred, color = pred), 
+                method = "loess", se = FALSE, formula = y~x,
+                linewidth = .25) +
+    ggh4x::facet_nested(
+        sex + Cluster ~ outcome + fut, scales = "free", independent = "y",
+        strip = ggh4x::strip_nested(
+            background_y = ggh4x::elem_list_rect(
+                fill = alpha(
+                    c(
+                        "grey",
+                        "grey",
+                        cluscolmap$ClusCol,
+                        cluscolmap$ClusCol[
+                            cluscolmap$Cluster != "DHT"
+                        ]
+                    ),
+                    .8
+                )
+            )
+        )
+    ) +
+    coord_cartesian(xlim = c(0, .2), ylim = c(-0.001,NA)) +
+    scale_x_continuous(
+        breaks = c(0, .05, .1, .15, .2), 
+        labels = function(x){ ifelse(x == 0, "0", 100 * x) }
+    ) +
+    scale_y_continuous(labels = function(x){10000 * x}) +
+    labs(x = "Threshold probability (%)", y = "Net benefit per 10,000") +
+    theme_bw() +
+    theme(
+        legend.position = "top", 
+        legend.title = element_blank(),
+        axis.text = element_text(size = 4)
+    )
+```
+
+```{r}
+dcadatclusmeandif <- dcadatclusmean %>%
+    filter(threshold == 0.1, fut == 10, pred %in% c("base", "clus")) %>%
+    group_by(sex, outcome, Cluster) %>%
+    summarise(
+        across(c(net_benefit, net_intervention_avoided), ~1e4*(.x[pred == "clus"] - .x[pred == "base"])),
+        .groups = "drop"
+    )
+head(dcadatclusmeandif)
+```
+
+```{r}
+wdat <- validclusmod %>%
+    transmute(
+        sex,
+        weightdat = map(
+            clusmod,
+            select,
+            Cluster = validclus_name,
+            Wt = validclus_weights
+        )
+    ) %>%
+    unnest(weightdat)
+head(wdat)
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 3)
+dcadatclusmeandif %>%
+    mutate(
+        Cluster = gsub("prob", "", Cluster)
+    ) %>%
+    inner_join(cluscolmap, by = "Cluster") %>%
+    inner_join(wdat, by = c("sex", "Cluster")) %>%
+    mutate(
+        net_benefit = net_benefit * Wt,
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster))
+    ) %>%
+    ggplot(aes(net_benefit, Cluster)) +
+    geom_vline(xintercept = c(-1, 0, 1), lty = "dashed", linewidth = .25) +
+    geom_col(aes(fill = ClusCol)) +
+    scale_fill_identity() +
+    facet_grid(sex ~ outcome, space = "free_y") +
+    theme_bw() +
+    labs(x = "Additional net benefit per 10,000", y = NULL)
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 3)
+dcadatclusmeandif %>%
+    mutate(
+        Cluster = gsub("prob", "", Cluster)
+    ) %>%
+    inner_join(cluscolmap, by = "Cluster") %>%
+    inner_join(wdat, by = c("sex", "Cluster")) %>%
+    mutate(
+        net_intervention_avoided = net_intervention_avoided * Wt,
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster))
+    ) %>%
+    ggplot(aes(net_intervention_avoided, Cluster)) +
+    geom_col(aes(fill = ClusCol)) +
+    scale_fill_identity() +
+    facet_grid(sex ~ outcome, space = "free_y") +
+    theme_bw() +
+    labs(x = "Net interventions avoided per 10,000", y = NULL)
+```
+

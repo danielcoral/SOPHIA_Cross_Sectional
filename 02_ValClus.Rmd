@@ -1,0 +1,695 @@
+---
+title: An R Markdown document converted from "02_ValClus.ipynb"
+output: html_document
+---
+
+# Validation results
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+library(ggplot2)
+```
+
+```{r}
+options(repr.plot.res = 300)
+```
+
+## Importing results
+
+```{r}
+result_tab <- tibble(
+    cohort = c("ukb", "maastricht", "rotterdam", "ghs")
+)
+result_tab
+```
+
+```{r}
+result_tab <- result_tab %>%
+    mutate(
+        data = map(
+            cohort,
+            ~rio::import(paste0("../data/", .x, "/result_file.RData"))
+        )
+    )
+print(result_tab)
+```
+
+## General descriptives
+
+```{r}
+gendesc <- result_tab %>%
+    transmute(
+        cohort,
+        data = map(data, "General_descriptives")
+    ) %>%
+    unnest(data)
+head(gendesc)
+```
+
+### Table summarising biomarkers from all cohorts
+
+```{r}
+numgendesc <- gendesc %>%
+    filter(Type == "Numeric") %>%
+    mutate(across(c(Summary1, Summary2), ~stringr::str_replace_all(.x, c(" \\(" = " - ", "\\)$" = "")))) %>%
+    separate_wider_delim(cols = Summary1, delim = " - ", names = c("Mean", "SD")) %>%
+    separate_wider_delim(cols = Summary2, delim = " - ", names = c("Median", paste0("p", c(2.5, 25, 75, 97.5)))) %>%
+    mutate(across(c(Mean, SD, Median, p2.5, p25, p75, p97.5), as.numeric))
+head(numgendesc)
+```
+
+```{r}
+write_tsv(numgendesc, "../data/numgendesc.tsv")
+```
+
+```{r}
+numgendesc %>%
+    select(cohort, sex, N) %>%
+    unique
+```
+
+```{r}
+gendesc %>%
+    filter(Type == "Categorical")
+```
+
+```{r}
+percsmoke <- gendesc %>%
+    filter(Type == "Categorical") %>%
+    transmute(
+        cohort, sex,
+        currentsmoke = ifelse(Summary1 == 0, "No", "Yes"),
+        Summary2 = stringr::str_replace_all(Summary2, c(" \\(" = " - ", "%\\)$" = ""))
+    ) %>%
+    separate_wider_delim(
+        cols = Summary2, delim = " - ", 
+        names = c("Ncat", "Perc")
+    ) %>%
+    mutate(across(c(Ncat, Perc), as.numeric))
+head(percsmoke)
+```
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 3)
+percsmoke %>%
+    filter(currentsmoke == "Yes") %>%
+    mutate(
+        cohort = stringr::str_replace_all(
+            cohort,
+            c(
+                "ukb" = "UKB",
+                "maastricht" = "MS",
+                "rotterdam" = "RS",
+                "ghs" = "GHS"
+            )
+        )
+    ) %>%
+    ggplot(aes(cohort, Perc)) +
+    geom_col(aes(fill = cohort), show.legend = FALSE) +
+    scale_fill_viridis_d(option = "A", begin = .25, end = .75, direction = -1) +
+    facet_wrap(
+        ~sex
+    ) +
+    labs(x = NULL, y = "%") + 
+    theme_bw()
+```
+
+### Boxplot summarising biomarkers from all cohorts
+
+```{r}
+options(repr.plot.width = 10, repr.plot.height = 5)
+numgendesc %>%
+    mutate(
+        Variable = toupper(Variable),
+        trait = Variable,
+        cohort = stringr::str_replace_all(
+            cohort,
+            c(
+                "ukb" = "UKB",
+                "maastricht" = "MS",
+                "rotterdam" = "RS",
+                "ghs" = "GHS"
+            )
+        )
+    ) %>%
+    group_by(Variable) %>%
+    nest %>%
+    mutate(
+        data = map(
+            data,
+            ~.x %>%
+                ggplot(aes(cohort)) +
+                geom_boxplot(aes(fill = cohort, ymin = p2.5, lower = p25, middle = Median, upper = p75, ymax = p97.5),
+                             stat = "identity") +
+                scale_fill_viridis_d(option = "A", begin = .25, end = .75, direction = -1) +
+                ggh4x::facet_nested_wrap(~trait + sex, nrow = 1) +
+                theme_bw() +
+                theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank())
+        )
+    ) %>%
+    pull(data) %>%
+    patchwork::wrap_plots(nrow = 2, guides = "collect") &
+    theme(legend.position = "top", legend.title = element_blank())
+```
+
+## Regression coefficients
+
+```{r}
+regcoefs <- result_tab %>%
+    transmute(
+        cohort,
+        data = map(data, "BMI_coefficients")
+    ) %>%
+    unnest(data)
+head(regcoefs)
+```
+
+```{r}
+write_tsv(regcoefs, "../data/regcoefs.tsv")
+```
+
+```{r}
+options(repr.plot.width = 10, repr.plot.height = 5)
+regcoefs %>%
+    filter(term == "bmi") %>%
+    mutate(
+        Biomarker = toupper(Biomarker),
+        trait = Biomarker,
+        cohort = stringr::str_replace_all(
+            cohort,
+            c(
+                "ukb" = "UKB",
+                "maastricht" = "MS",
+                "rotterdam" = "RS",
+                "ghs" = "GHS"
+            )
+        )
+    ) %>%
+    nest(data = -Biomarker) %>%
+    mutate(
+        data = map(
+            data,
+            ~.x %>%
+                ggplot(aes(cohort, Estimate)) +
+                geom_hline(yintercept = 0, lty = "dashed") +
+                geom_linerange(aes(ymin = lowerCI, ymax = upperCI)) +
+                geom_point(aes(color = cohort)) +
+                scale_color_viridis_d(option = "A", begin = .25, end = .75, direction = -1) +
+                ggh4x::facet_nested_wrap(~trait + sex, nrow = 1) +
+                theme_bw() +
+                theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title = element_blank())
+        )
+    ) %>%
+    pull(data) %>%
+    patchwork::wrap_plots(nrow = 2, guides = "collect") &
+    theme(legend.position = "top")
+```
+
+## UMAP projections
+
+```{r}
+umap_projs <- result_tab %>%
+    transmute(
+        cohort,
+        data = map(data, "Cluster_results"),
+        sex = map(data, names)
+    ) %>%
+    unnest(c(sex, data)) %>%
+    mutate(data = map(data, pluck, "umap_model", "embedding"),
+           data = map(data, data.frame)) %>%
+    unnest(data)
+print(umap_projs)
+```
+
+Discovery and validation cohorts:
+
+```{r}
+options(repr.plot.width = 10, repr.plot.height = 6)
+umap_projs %>%
+    mutate(
+        cohort = recode_factor(
+            factor(cohort), 
+            "ukb" = "UKB",
+            "rotterdam" = "RS",
+            "maastricht" = "MS",
+            "ghs" = "GHS"
+        )
+    ) %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(aes(color = cohort), shape = ".", show.legend = FALSE) +
+    scale_color_viridis_d(option = "A", begin = .25, end = .75, direction = 1) +
+    ggh4x::facet_nested_wrap(~cohort + sex, scales = "free", nrow = 2) +
+    theme_bw() +
+    theme(
+        axis.text = element_blank(),
+        axis.ticks = element_blank()
+    ) +
+    labs(x = "UMAP1", y = "UMAP2")
+```
+
+## Clusters
+
+```{r}
+options(repr.plot.width = 12, repr.plot.height = 15)
+result_tab %>%
+    transmute(
+        cohort = stringr::str_replace_all(
+            cohort,
+            c(
+                "ukb" = "UKB",
+                "maastricht" = "MS",
+                "rotterdam" = "RS",
+                "ghs" = "GHS"
+            )
+        ),
+        data = map(data, "Cluster_results"),
+        sex = map(data, names)
+    ) %>%
+    unnest(c(sex, data)) %>%
+    mutate(
+        data = map(data, "clusters"),
+        cluster = map(data, names)
+    ) %>%
+    unnest(cluster) %>%
+    mutate(
+        data = map2(data, cluster, ~.x[[.y]]),
+        center = map(data, "center"),
+        trait = map(center, names)
+    ) %>%
+    select(-data) %>%
+    unnest(c(center, trait)) %>%
+    mutate(trait = toupper(trait)) %>%
+    ggplot(aes(center, trait)) +
+    geom_vline(xintercept = 0, lty = "dashed") +
+    geom_segment(aes(xend = 0, yend = trait)) +
+    geom_point() +
+    ggh4x::facet_nested(sex + cohort ~ cluster) +
+    labs(x = "Mean residual value (SD units)", y = NULL) +
+    theme_bw()
+```
+
+## Individuals allocated to their closest cluster
+
+```{r}
+closest_cluster <- result_tab %>%
+    transmute(
+        cohort,
+        data = map(data, "Cluster_results"),
+        sex = map(data, names)
+    ) %>%
+    unnest(c(sex, data)) %>%
+    mutate(
+        embed = map(data, pluck, "umap_model", "embedding"),
+        embed = map(embed, data.frame),
+        clusterdat = map(data, pluck, "probs"),
+        clusterdat = map2(clusterdat, embed, bind_cols),
+        clusterdat = map(clusterdat, pivot_longer, -c(eid, X1, X2), names_to = "cluster", values_to = "prob"),
+        clusterdat = map(clusterdat, group_by, eid),
+        clusterdat = map(clusterdat, slice_max, prob, with_ties = FALSE)
+    ) %>%
+    select(cohort, sex, clusterdat) %>%
+    unnest(clusterdat)
+head(closest_cluster)
+```
+
+```{r}
+options(repr.plot.width = 10, repr.plot.height = 2)
+closest_cluster %>%
+    mutate(
+        cohort = recode_factor(
+            factor(cohort), 
+            "ukb" = "UKBiobank",
+            "ghs" = "GHS",
+            "rotterdam" = "Rotterdam",
+            "maastricht" = "Maastricht"
+        )
+    ) %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(aes(fill = cluster), show.legend = FALSE,
+               size = .2, shape = 21, color = alpha("magenta", 0.2), stroke = .01, alpha = .8) +
+    ggh4x::facet_nested(~cohort + sex, scales = "free", independent = "all") +
+    theme(
+        plot.background = element_rect(fill = "black"),
+        panel.background = element_rect(fill = "black"),
+        panel.grid = element_blank(),
+        strip.background = element_rect(fill = "black", color = "white"),
+        strip.text = element_text(color = "white"),
+        axis.text = element_blank(),
+        axis.ticks = element_blank()
+    ) +
+    labs(x = "UMAP1", y = "UMAP2")
+```
+
+## Discovery data
+
+```{r}
+load("../data/ukb/strat_dat.RData")
+```
+
+```{r}
+map(strat_dat, head)
+```
+
+## Residualization of discovery data by each model
+
+```{r}
+BIOMARKERS <- c("whr", "sbp", "dbp", "alt", "scr", "crp", "hdl", "tg", "ldl", "fg")
+```
+
+```{r}
+COVARIATES <- c("bmi", "age", "smoking")
+```
+
+```{r}
+predicttab <- regcoefs %>%
+    nest(coefdat = -c(cohort, sex, Biomarker)) %>%
+    mutate(
+        coefmat = map(coefdat, ~matrix(.x$Estimate, ncol = 1, dimnames = list(.x$term, "Estimate"))),
+        coefmat = map(coefmat, ~.x[c("(Intercept)", COVARIATES), "Estimate", drop = FALSE]),
+        observedval = map2(sex, Biomarker, ~pull(strat_dat[[.x]], .y)),
+        predictormat = map(sex, ~as.matrix(cbind(Intercept = 1, strat_dat[[.x]][,COVARIATES]))),
+        predictedval = map2(predictormat, coefmat, ~as.vector(.x %*% .y)),
+        residval = map2(observedval, predictedval, ~.x - .y),
+        MeanRes = map_dbl(residval, mean),
+        SDRes = map_dbl(residval, sd)
+    )
+print(predicttab)
+```
+
+```{r}
+residtab <- predicttab %>%
+    mutate(scaleresidval = pmap(list(residval, MeanRes, SDRes), ~(..1 - ..2) / ..3)) %>%
+    select(cohort, sex, Biomarker, scaleresidval) %>%
+    pivot_wider(names_from = Biomarker, values_from = scaleresidval) %>%
+    mutate(eid = map(sex, ~strat_dat[[.x]]$eid)) %>%
+    unnest(-c(cohort, sex)) %>%
+    select(cohort, sex, eid, all_of(BIOMARKERS))
+head(residtab)
+```
+
+## Cluster validation
+
+```{r}
+cluster_results <- result_tab %>%
+    transmute(
+        cohort,
+        clusdat = map(data, "Cluster_results"),
+        sex = map(clusdat, names)
+    ) %>%
+    unnest(c(sex, clusdat)) %>%
+    mutate(clusdat = map(clusdat, "clusters"))
+print(cluster_results)
+```
+
+```{r}
+clusprobdat <- cluster_results %>%
+    mutate(
+        residdat = map2(cohort, sex, ~filter(residtab, cohort == .x, sex == .y)),
+        probdat = map2(
+            residdat, clusdat,
+            function(DAT, CLUSDAT){
+                X <- DAT[,BIOMARKERS]
+                mus <- map(CLUSDAT, "center")
+                mus <- map(mus, function(mu){ mu[BIOMARKERS] })
+                covmats <- map(CLUSDAT, "cov")
+                covmats <- map(covmats, function(covmat){ covmat[BIOMARKERS, BIOMARKERS] })
+                wts <- map_dbl(CLUSDAT, "weight")
+                pdfs <- mapply(function(mu, covmat){ mvtnorm::dmvnorm(X, mu, covmat) }, mus, covmats)
+                L <- pdfs %*% diag(wts)
+                colnames(L) <- colnames(pdfs)
+                data.frame(eid = DAT$eid, L / rowSums(L))
+            }
+        )
+    )
+print(clusprobdat)
+```
+
+```{r}
+validationtab <- clusprobdat %>%
+    transmute(
+        cohort, sex, 
+        probdat = map(probdat, pivot_longer, -eid, names_to = "cluster", values_to = "prob")
+    ) %>%
+    {
+        ## Discovery vs. validation cohorts
+        refdat <- filter(., cohort == "ukb")
+        testdat <- filter(., cohort != "ukb")
+        inner_join(refdat, testdat, by = "sex", suffix = c("_ref", "_test"))
+    } %>%
+    mutate(
+        ## Individuals with high certainty of cluster allocation in discovery model
+        probdat_ref = map(probdat_ref, filter, prob >= .8),
+        probdat = map2(probdat_ref, probdat_test, inner_join, by = "eid", suffix = c("_ref", "_test"))
+    ) %>%
+    select(sex, cohort_ref, cohort_test, probdat) %>%
+    unnest(probdat) %>%
+    filter(cluster_ref != "cluster_0")
+head(validationtab)
+```
+
+```{r}
+medianprobtab <- validationtab %>%
+    group_by(sex, cohort_ref, cohort_test, cluster_ref, cluster_test) %>%
+    summarise(MedProb = median(prob_test), .groups = "drop")
+head(medianprobtab)
+```
+
+```{r}
+validatedtab <- medianprobtab %>%
+    filter(MedProb >= .8)
+head(validatedtab)
+```
+
+```{r}
+options(repr.plot.width = 7, repr.plot.height = 4)
+validatedtab %>%
+    transmute(
+        sex,
+        from = gsub("cluster_", "U:", cluster_ref),
+        to = case_match(
+            cohort_test,
+            "maastricht" ~ gsub("cluster_", "M:", cluster_test),
+            "rotterdam" ~ gsub("cluster_", "R:", cluster_test),
+            "ghs" ~ gsub("cluster_", "G:", cluster_test)
+        )
+    ) %>%
+    group_by(sex) %>%
+    nest %>%
+    mutate(
+        net = map(data, ~igraph::graph_from_data_frame(.x, directed = FALSE)),
+        netplot = map2(
+            net, sex,
+            ~.x %>%
+                ggraph::ggraph(layout = "igraph", algorithm = "nicely") +
+                ggraph::geom_edge_link() +
+                ggraph::geom_node_point(aes(fill = gsub("^([A-Z]):.+$", "\\1", name)), 
+                                        shape = 21, size = 7) +
+                scale_fill_viridis_d(
+                    option = "A", begin = .25, end = .75, direction = -1,
+                    labels = c(U = "UKB", M = "MS", R = "RS", G = "GHS"),
+                    guide = guide_legend(override.aes = list(size = 2))
+                ) +
+                ggraph::geom_node_text(aes(label = name), color = "white", fontface = "bold", size = 2) +
+                labs(title = .y, fill = "Cohort")
+        )
+    ) %>%
+    pull(netplot) %>%
+    patchwork::wrap_plots(nrow = 1, guides = "collect") &
+    theme(legend.position = "bottom")
+```
+
+### Cluster mapper
+
+```{r}
+cluster_mapper <- validatedtab %>%
+    select(sex, cluster_ref, cohort_test, cluster_test) %>%
+    group_by(sex, cluster_ref) %>%
+    filter(n() == 3) %>%
+    mutate(
+        validclus_id = paste0("VC", cur_group_id())
+    ) %>%
+    ungroup %>%
+    arrange(sex, validclus_id)
+head(cluster_mapper)
+```
+
+```{r}
+cluster_mapper <- cluster_mapper %>%
+    {
+        refdat <- transmute(., sex, validclus_id, cohort = "ukb", cluster_id = cluster_ref)
+        refdat <- unique(refdat)
+        testdat <- transmute(., sex, validclus_id, cohort = cohort_test, cluster_id = cluster_test)
+        bind_rows(refdat, testdat)
+    } %>%
+    arrange(sex, validclus_id)
+head(cluster_mapper)
+```
+
+```{r}
+options(repr.plot.width = 12, repr.plot.height = 3)
+cluster_mapper %>%
+    inner_join(cluster_results) %>%
+    transmute(
+        cohort, sex, validclus_id, cluster_id,
+        centers = map2(clusdat, cluster_id, ~tibble(trait = BIOMARKERS, center = .x[[.y]][["center"]][BIOMARKERS]))
+    ) %>%
+    unnest(centers) %>%
+    ggplot(aes(center, trait)) +
+    geom_vline(xintercept = 0, lty = "dashed") +
+    geom_linerange(aes(xmin = 0, xmax = center, group = cohort, color = cohort),
+                 position = position_dodge(width = .5)) +
+    geom_point(aes(group = cohort, color = cohort),
+               position = position_dodge(width = .5)) +
+    ggh4x::facet_nested(~ sex + validclus_id) +
+    theme_bw() +
+    theme(legend.position = "top")
+```
+
+## Naming clusters based on centers
+
+```{r}
+cluster_namer <- cluster_mapper %>%
+    mutate(
+        validclus_name = case_match(
+            validclus_id,
+            "VC1" ~ "DHT",
+            "VC2" ~ "DHG",
+            "VC3" ~ "DIS",
+            "VC4" ~ "DAL",
+            "VC5" ~ "DLT",
+            "VC6" ~ "DAL",
+            "VC7" ~ "DLT",
+            "VC8" ~ "DHG",
+            "VC9" ~ "DIS"
+        )
+    )
+head(cluster_namer)
+```
+
+```{r}
+write_tsv(cluster_namer, "../data/cluster_namer.tsv")
+```
+
+```{r}
+options(repr.plot.width = 7, repr.plot.height = 5)
+cluster_mapper %>%
+    inner_join(cluster_results) %>%
+    transmute(
+        sex, cohort, validclus_id, cluster_id,
+        centers = map2(clusdat, cluster_id, ~tibble(trait = BIOMARKERS, center = .x[[.y]][["center"]][BIOMARKERS]))
+    ) %>%
+    unnest(centers) %>%
+    inner_join(cluster_namer) %>%
+    mutate(
+        cohort = stringr::str_replace_all(
+            cohort,
+            c(
+                "ukb" = "UKB",
+                "maastricht" = "MS",
+                "rotterdam" = "RS",
+                "ghs" = "GHS"
+            )
+        )
+    ) %>%
+    split(f = .$sex) %>%
+    map(
+        ~ggplot(.x, aes(center, trait)) +
+            geom_vline(xintercept = 0, lty = "dashed") +
+            geom_linerange(aes(xmin = 0, xmax = center, group = cohort, color = cohort),
+                           position = position_dodge(width = .5)) +
+            geom_point(aes(group = cohort, color = cohort),
+                       position = position_dodge(width = .5)) +
+            ggh4x::facet_nested(~ sex + validclus_name) +
+            theme_bw()
+    ) %>%
+    patchwork::wrap_plots(ncol = 1, guides = "collect") &
+    theme(legend.position = "top", legend.title = element_blank(), axis.title = element_blank())
+```
+
+## Saving validated clustering model
+
+```{r}
+valid_cluspars <- cluster_results %>%
+    filter(cohort == "ukb") %>%
+    inner_join(cluster_namer) %>%
+    transmute(
+        sex, validclus_name,
+        validclus_centers = unname(map2(clusdat, cluster_id, ~.x[[.y]][["center"]])),
+        validclus_covmats = unname(map2(clusdat, cluster_id, ~.x[[.y]][["cov"]])),
+        validclus_weights = map2_dbl(clusdat, cluster_id, ~.x[[.y]][["weight"]])
+    )
+print(valid_cluspars)
+```
+
+Adding concordant cluster:
+
+```{r}
+concordantclus <- valid_cluspars %>%
+    group_by(sex) %>%
+    summarise(
+        validclus_name = "BC",
+        validclus_centers = list(setNames(rep(0, length(BIOMARKERS)), BIOMARKERS)),
+        validclus_covmats = list(structure(diag(rep(1, length(BIOMARKERS))), 
+                                           dimnames = list(BIOMARKERS, BIOMARKERS))),
+        validclus_weights = 1 - sum(validclus_weights)
+    )
+print(concordantclus)
+```
+
+```{r}
+valid_cluspars <- valid_cluspars %>%
+    bind_rows(concordantclus) %>%
+    arrange(sex, desc(validclus_weights))
+print(valid_cluspars)
+```
+
+```{r}
+valid_cluspars <- valid_cluspars %>%
+    nest(clusmod = -sex)
+print(valid_cluspars)
+```
+
+Regression model coefficients:
+
+```{r}
+RGC <- regcoefs %>% 
+    filter(cohort == "ukb") %>% 
+    transmute(sex, Biomarker, term = gsub("\\(|\\)", "", term), Estimate) %>%
+    pivot_wider(names_from = term, values_from = Estimate)
+head(RGC)
+```
+
+Standard deviation of residuals:
+
+```{r}
+RESIDSD <- predicttab %>% 
+    filter(cohort == "ukb") %>% 
+    select(sex, Biomarker, SDRes)
+head(RESIDSD)
+```
+
+```{r}
+LMMODELDF <- inner_join(RGC, RESIDSD)
+head(LMMODELDF)
+```
+
+```{r}
+LMMODELDF <- LMMODELDF %>%
+    nest(residmod = -sex)
+print(LMMODELDF)
+```
+
+Final per-sex model
+
+```{r}
+validclusmod <- inner_join(LMMODELDF, valid_cluspars)
+print(validclusmod)
+```
+
+```{r}
+save(validclusmod, file = "../data/validclusmod.RData")
+```
+
