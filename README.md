@@ -1,9 +1,9 @@
-# Clusters of phenotypic subtypes that are discordant for their BMIs
+# Profiles of phenotypic discordance for a given BMI
 
-Analysis pipeline
+Overall analysis pipeline:
 
 ![](./AnalysisPlot.png)
 
-Details on using UMAP
+How we used UMAP for clustering:
 
 ![](./Clusmethod.png)
