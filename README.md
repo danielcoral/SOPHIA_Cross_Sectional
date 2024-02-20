@@ -1,6 +1,6 @@
 # Profiles of phenotypic discordance for a given BMI
 
-Overall analysis pipeline:
+Overall analysis pipeline for discovery and replication:
 
 ![](./plots/AnalysisPlot.png)
 
