@@ -2,8 +2,8 @@
 
 Overall analysis pipeline:
 
-![](./AnalysisPlot.png)
+![](./plots/AnalysisPlot.png)
 
 How we used UMAP for clustering:
 
-![](./Clusmethod.png)
+![](./plots/Clusmethod.png)
