@@ -227,3 +227,85 @@ embeddf %>%
     labs(x = "UMAP1", y = "UMAP2")
 ```
 
+## What if we used PCs instead
+
+```{r}
+pcdat <- validclusmod %>%
+    mutate(
+        pcd = map(residtab, prcomp)
+    )
+print(pcdat)
+```
+
+```{r}
+archmodpc <- pcdat %>%
+    transmute(
+        sex,
+        choosemod = map(
+            pcd,
+            ~archetypes::stepArchetypes(
+                .x$x[,1:8], 
+                k = 3:20,
+                nrep = 1,
+                verbose = FALSE
+            )
+        )
+    )
+```
+
+```{r}
+options(repr.plot.height = 3, repr.plot.width = 7)
+archmodpc %>%
+    mutate(
+        choosemod = map(
+            choosemod,
+            ~{
+                res <- unclass(.x)
+                res <- map(res, unclass)
+                res <- map(res, \(x) x[[1]])
+                res <- map_dbl(res, "rss")
+                data.frame(
+                    Nclus = 3:20,
+                    RSS = res
+                )
+            }
+        )
+    ) %>%
+    unnest(choosemod) %>%
+    ggplot(aes(Nclus, RSS)) +
+    geom_line() +
+    geom_point() +
+    facet_wrap(~sex, scales = "free") +
+    theme_bw()
+```
+
+```{r}
+archbestpc <- pcdat %>%
+    transmute(
+        sex,
+        mod = map(
+            pcd,
+            ~archetypes::archetypes(
+                .x$x[,1:8], 
+                k = 10
+            )
+        )
+    )
+```
+
+```{r}
+archbestpc %>%
+    transmute(
+        sex,
+        RelEnt = map_dbl(
+            mod,
+            ~{
+                pp <- pmax(.x$alphas, .Machine$double.xmin)
+                ent <- -sum(rowSums(pp * log(pp)))
+                1 - ent / (nrow(pp) * log(ncol(pp)))
+            }
+        ),
+        RelEnt = round(RelEnt, 2)
+    )
+```
+

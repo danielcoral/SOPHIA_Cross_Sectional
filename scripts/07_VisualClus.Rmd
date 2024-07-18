@@ -440,6 +440,10 @@ print(result_tab)
 ```
 
 ```{r}
+BIOMARKERS <- c("whr", "sbp", "dbp", "alt", "scr", "crp", "hdl", "tg", "ldl", "fg")
+```
+
+```{r}
 cluster_results <- result_tab %>%
     transmute(
         cohort,
@@ -447,7 +451,24 @@ cluster_results <- result_tab %>%
         sex = map(clusdat, names)
     ) %>%
     unnest(c(sex, clusdat)) %>%
-    mutate(clusdat = map(clusdat, "clusters"))
+    mutate(
+        clusN = map(clusdat, ~colSums(.x$probs[,-1])),
+        clusdat = map(clusdat, "clusters"),
+        cluster_id = map(clusdat, names)
+    ) %>%
+    unnest(c(cluster_id, clusdat, clusN)) %>%
+    mutate(
+        param = map(clusdat, names)
+    ) %>%
+    unnest(c(param, clusdat)) %>%
+    filter(param %in% c("center", "cov", "weight")) %>%
+    pivot_wider(names_from = param, values_from = clusdat) %>%
+    mutate(
+        center = map(center, ~.x[BIOMARKERS]),
+        cov = map(cov, ~.x[BIOMARKERS,BIOMARKERS]),
+        clusw = unlist(weight),
+        weight = NULL
+    )
 print(cluster_results)
 ```
 
@@ -457,45 +478,56 @@ head(cluster_namer)
 ```
 
 ```{r}
-BIOMARKERS <- c("whr", "sbp", "dbp", "alt", "scr", "crp", "hdl", "tg", "ldl", "fg")
-```
-
-```{r}
-options(repr.plot.width = 7, repr.plot.height = 5)
-cluscentplot <- cluster_namer %>%
+cluscentdat <- cluster_namer %>%
     transmute(sex, cohort, Cluster = validclus_name, cluster_id) %>%
     nest(D = -c(sex, cohort)) %>%
     mutate(D = map(D, add_row, Cluster = "BC", cluster_id = "cluster_0")) %>%
     unnest(D) %>%
     inner_join(cluscolmap, by = "Cluster") %>%
     mutate(Cluster = factor(Cluster, levels = cluscolmap$Cluster)) %>%
-    inner_join(cluster_results, by = c("sex", "cohort")) %>%
-    transmute(
-        sex, 
+    inner_join(cluster_results, by = c("sex", "cohort", "cluster_id")) %>%
+    mutate(
+        trait = map(center, names),
+        s2 = map(cov, diag),
+        cov = NULL
+    ) %>%
+    unnest(c(trait, center, s2)) %>%
+    mutate(
+        sem = sqrt(s2)/sqrt(clusN),
+        ci = qnorm(1 - .05/2)*sem,
+        lwr = center - ci,
+        upr = center + ci
+    )
+head(cluscentdat)
+```
+
+```{r}
+options(repr.plot.width = 7, repr.plot.height = 5)
+cluscentplot1 <- cluscentdat %>%
+    mutate(
         cohort = stringr::str_replace_all(
             cohort,
             c(
                 "ukb" = "UKB",
-                "maastricht" = "MS",
+                "maastricht" = "TMS",
                 "rotterdam" = "RS",
                 "ghs" = "GHS"
             )
         ),
-        Cluster, ClusCol,
-        centers = map2(clusdat, cluster_id, ~tibble(trait = BIOMARKERS, center = .x[[.y]][["center"]][BIOMARKERS]))
-    ) %>%
-    unnest(centers) %>%
-    mutate(
         trait = toupper(trait)
     ) %>%
     split(f = .$sex) %>%
     map(
         ~ggplot(.x, aes(center, trait)) +
             geom_vline(xintercept = 0, lty = "dashed") +
-            geom_linerange(aes(xmin = 0, xmax = center, group = cohort, color = cohort),
-                           position = position_dodge(width = .5), linewidth = .1) +
-            geom_point(aes(group = cohort, color = cohort),
-                       position = position_dodge(width = .5), size = .25) +
+            geom_linerange(
+                aes(xmin = lwr, xmax = upr, group = cohort),
+                position = position_dodge(width = .5), linewidth = .1
+            ) +
+            geom_point(
+                aes(group = cohort, color = cohort),
+                position = position_dodge(width = .5), size = .25
+            ) +
             scale_color_viridis_d(option = "A", begin = .25, end = .75, direction = -1) +
             scale_x_continuous(n.breaks = 3) + 
             labs(x = "Residuals - SD units", y = NULL) +
@@ -517,7 +549,60 @@ cluscentplot <- cluster_namer %>%
                 ) +
             theme_bw()
     )
-cluscentplot
+cluscentplot1
+```
+
+```{r}
+options(repr.plot.width = 7, repr.plot.height = 5)
+cluscentplot2 <- cluscentdat %>%
+    mutate(
+        cohort = stringr::str_replace_all(
+            cohort,
+            c(
+                "ukb" = "UKB",
+                "maastricht" = "TMS",
+                "rotterdam" = "RS",
+                "ghs" = "GHS"
+            )
+        ),
+        trait = toupper(trait)
+    ) %>%
+    ggplot(aes(cohort, center)) +
+    geom_hline(yintercept = 0, lty = "dashed", linewidth = .25) +
+    geom_linerange(
+        aes(ymin = lwr, ymax = upr),
+        linewidth = .25
+    ) +
+    geom_point(
+        aes(color = cohort), 
+        size = .5
+    ) +
+    scale_color_viridis_d(
+        option = "A", begin = .25, end = .75, direction = -1,
+        guide = guide_legend(
+            title = NULL,
+            position = "top",
+            override.aes = list(size = 1)
+        )
+    ) +
+    scale_x_discrete(expand = expansion(mult = 1)) +
+    labs(x = NULL, y = "Residuals - SD units") +
+    ggh4x::facet_nested(
+        trait ~ sex + Cluster, 
+        scales = "free_y"
+    ) +
+    theme_bw() +
+    theme(
+        legend.margin = margin(),
+        legend.spacing.y = unit(0, "mm"),
+        panel.spacing.x = unit(0, "mm"),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        strip.text.y = element_text(angle = 0),
+        panel.grid.major.x = element_blank(),
+        plot.margin = margin()
+    )
+cluscentplot2
 ```
 
 ```{r}
@@ -550,7 +635,7 @@ cluswplot <- clusw %>%
         )
     ) %>%
     ggplot(aes(Cluster, ymin = propmin, ymax = propmax)) +
-    geom_linerange(aes(color = ClusCol), linewidth = 7.5, na.rm = TRUE) +
+    geom_linerange(aes(color = ClusCol), linewidth = 6.5, na.rm = TRUE) +
     scale_color_identity() +
     facet_grid(
         plotrang ~ sex,
@@ -564,7 +649,7 @@ cluswplot <- clusw %>%
     ) +
     ggh4x::scale_y_facet(
         plotrang == "high", breaks = c(70, 80), 
-        expand = expand_scale(mult = c(0,0.1))
+        expand = expansion(mult = c(0,0.1))
     ) +
     theme_bw() +
     theme(
@@ -576,56 +661,83 @@ cluswplot
 ```
 
 ```{r}
-options(repr.plot.width = 8, repr.plot.height = 5)
+flowchd <- tibble::tribble(
+    ~from, ~to, 
+    "A", "B", 
+    "B", "C", 
+    "C", "D", 
+    "D", "E",
+    "E", "F",
+    "F", "G"
+)
+```
+
+```{r}
+flowchnodes <- tibble::tibble(
+    name = c("A", "B", "C", "D", "E", "F", "G"),
+    label = c(
+        "Selection of\nbiomarkers",
+        "Quantification\nof biomarker\ndeviations\nfrom BMI",
+        "UMAP\n\nNetwork\n+\n2D visualisation",
+        "Network clustering\n\nSpectral\n+\nLeiden",
+        "Probabilistic\nassignment\nusing\nGaussian\nmixture model",
+        "Validation\n\nSelection of robust\ndiscordant profiles",
+        "Association between\ndiscordant profiles\n&\nprevalence/incidence\nof disease"
+    )
+)
+```
+
+```{r}
+options(repr.plot.width = 10, repr.plot.height = 1.25)
+flowchp <- ggflowchart::ggflowchart(
+    data = flowchd, 
+    node_data = flowchnodes,
+    text_size = 1.5,
+    arrow_size = .5,
+    y_nudge = .45,
+    horizontal = TRUE
+)
+flowchp
+```
+
+```{r}
+options(repr.plot.width = 8, repr.plot.height = 6)
 patchwork::wrap_plots(
-    patchwork::wrap_plots(
-        embedplot +
-            theme(
-                legend.position = "none",
-                axis.title = element_text(size = 6),
-                axis.text = element_text(size = 5),
-                panel.spacing = unit(.5, "mm")
-            ),
-        patchwork::plot_spacer(),
-        patchwork::wrap_elements(
-            full = patchwork::wrap_plots(
-                cluswplot +
-                    theme(
-                        axis.text = element_text(size = 5),
-                        axis.title = element_text(size = 5)
-                    ),
-                widths = c(.99, .01)
+    flowchp,
+    embedplot +
+        theme(
+            legend.position = "none",
+            axis.title = element_text(size = 6),
+            axis.text = element_text(size = 5),
+        ),
+    cluswplot +
+        theme(
+            axis.text = element_text(size = 5),
+            axis.title = element_text(size = 5)
+        ),
+    cluscentplot2 +
+        theme(
+            legend.text = element_text(size = 5),
+            axis.title.y = element_text(size = 7),
+            axis.text.y = element_text(size = 3.5),
+            axis.ticks.y = element_line(linewidth = .25),
+            strip.text = element_text(size = 5),
+            strip.text.y = element_text(
+                hjust = 0, margin = margin(l=1)
             )
         ),
-        ncol = 1,
-        heights = c(.5, -.05, .5)
-    ),
-    patchwork::wrap_elements(
-        full = patchwork::wrap_plots(
-            cluscentplot[[1]] + theme(axis.title = element_blank()), 
-            cluscentplot[[2]] + theme(axis.title.x = element_text(size = 5)),
-            ncol = 1,
-            guides = "collect"
-        ) &
-        theme(legend.margin = margin(),
-              legend.spacing = unit(0, "mm"),
-              legend.key.size = unit(0.5, "mm"),
-              legend.position = "top",
-              legend.title = element_blank(),
-              legend.text = element_text(size = 6),
-              axis.title.y = element_blank(),
-              axis.text = element_text(size = 5))
-    ),
-    ncol = 2,
-    widths = c(.4, .6)
-)
+    design = "AA\nBD\nCD",
+    tag_level = "new",
+    heights = c(.2, .4, .4)
+) +
+    patchwork::plot_annotation(tag_levels = "A")
 ```
 
 ## Covariance matrices
 
 ```{r}
 options(repr.plot.width = 10, repr.plot.height = 5)
-validclusmod %>%
+corrpdat <- validclusmod %>%
     transmute(
         sex, 
         clusmod = map(
@@ -633,30 +745,50 @@ validclusmod %>%
             function(CLUSD){
                 CLUSD %>%
                     transmute(
-                        validclus_name,
+                        Cluster = validclus_name,
                         cormat = map(
                             validclus_covmats,
                             function(COVMAT){
                                 CORMAT <- cov2cor(COVMAT)
-                                #CORMAT[lower.tri(CORMAT)] <- NA
+                                CORMAT[lower.tri(CORMAT)] <- NA
                                 reshape2::melt(CORMAT, na.rm = TRUE)
                             }
                         )
                     ) %>%
                     unnest(cormat)
             }
-        )
+        ),
+        probtab = map(probtab, colSums),
+        probtab = map(probtab, ~data.frame(Cluster = gsub("prob", "", names(.x)), N = .x)),
+        clusmod = map2(clusmod, probtab, inner_join, by = "Cluster"),
+        probtab = NULL
     ) %>%
     unnest(clusmod) %>%
-    #filter(validclus_name != "BC") %>%
+    mutate(
+        rstat = (value * sqrt(N-2)) / (1 - (value^2)),
+        pvalr = 2*pt(-abs(rstat), df = N-2)
+    )
+head(corrpdat)
+```
+
+```{r}
+corrpdat %>%
     mutate(
         across(c(Var1, Var2), toupper),
-        validclus_name = factor(validclus_name, levels = cluscolmap$Cluster)
+        across(c(Var1, Var2), ~factor(.x, levels = rev(toupper(BIOMARKERS)))),
+        Cluster = factor(Cluster, levels = cluscolmap$Cluster),
+        pvalr = case_when(
+            pvalr >= 0.05 ~ "n.s.",
+            pvalr < 0.05 & pvalr >= 0.01 ~ "*",
+            pvalr < 0.01 & pvalr >= 0.001 ~ "**",
+            pvalr < 0.001 ~ "***"
+        )
     ) %>%
     ggplot(aes(Var1, Var2)) +
-    geom_tile(aes(fill = round(value, 5)), color = "black", linewidth = .1) +
+    geom_tile(aes(fill = value), color = "black", linewidth = .1) +
     scale_fill_gradient2(limits = c(-1, 1), low = scales::muted("blue"), high = scales::muted("red"), midpoint = 0) +
-    facet_grid(sex ~ validclus_name) +
+    geom_text(aes(label = paste0(round(value, 2), "\n", pvalr)), size = 1) +
+    facet_grid(sex ~ Cluster) +
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 90, vjust = .5, hjust = 1),
           legend.position = "top",

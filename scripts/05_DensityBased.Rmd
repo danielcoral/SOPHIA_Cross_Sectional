@@ -99,3 +99,54 @@ hdbmod %>%
     theme(strip.text.y = element_text(angle = 0))
 ```
 
+## What happens if we run this using the first 8 PCs?
+
+```{r}
+pcdat <- validclusmod %>%
+    mutate(
+        pcd = map(residtab, prcomp)
+    )
+print(pcdat)
+```
+
+```{r}
+hdbmod <- pcdat %>%
+    expand_grid(
+        minpt = c(5, 10, 15, 20, 25, 50, 100, 250, 500, 1000)
+    ) %>%
+    transmute(
+        sex,
+        choosemod = map2(
+            pcd, minpt,
+            ~hdbscan(.x$x[,1:8], minPts = .y)
+        )
+    )
+```
+
+```{r}
+options(repr.plot.width = 6, repr.plot.height = 4)
+hdbmod %>%
+    transmute(
+        sex,
+        minpt = map_dbl(choosemod, "minPts"),
+        clustab = map(
+            choosemod,
+            ~.x$cluster %>%
+                table %>%
+                prop.table %>%
+                t %>%
+                data.frame %>%
+                select(2, Freq) %>%
+                setNames(c("Cluster", "Weight"))
+        )
+    ) %>%
+    unnest(clustab) %>%
+    ggplot(aes(Weight, Cluster)) +
+    geom_col() +
+    facet_grid(minpt ~ sex, scales = "free_y", space = "free_y") +
+    scale_x_continuous(labels = \(x) 100 * x) +
+    labs(x = "Weight (%)") +
+    theme_bw() +
+    theme(strip.text.y = element_text(angle = 0))
+```
+

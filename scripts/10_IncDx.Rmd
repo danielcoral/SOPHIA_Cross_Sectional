@@ -219,12 +219,12 @@ allRRs <- bind_rows(
             case_match(
                 cohort,
                 "ukb" ~ "UKB",
-                "maastricht" ~ "MS",
+                "maastricht" ~ "TMS",
                 "rotterdam" ~ "RS",
                 "ghs" ~ "GHS",
                 .default = cohort
             ),
-            levels = c("UKB", "MS", "RS", "GHS", "PooledFE", "PooledRE")
+            levels = c("UKB", "TMS", "RS", "GHS", "PooledFE", "PooledRE")
         ),      
         RR = exp(estimate),
         LOWERCI = exp(estimate - qnorm(1 - .05/2)*std.error),
@@ -335,7 +335,7 @@ logratioest <- survcoefd %>%
                 data.frame(
                     Cluster = gsub("alrprob", "", cls), 
                     ESTIMATE = .x[cls],
-                    SE = diag(.y)[cls]
+                    SE = sqrt(diag(.y)[cls])
                 )
             }
         )
@@ -354,11 +354,23 @@ poollogratioest <- logratioest %>%
             ~tibble(
                 cohort = c("Pooled_FE", "Pooled_RE"),
                 ESTIMATE = c(.x$TE.fixed, .x$TE.random), 
-                SE = c(.x$seTE.fixed, .x$seTE.random)
+                SE = c(.x$seTE.fixed, .x$seTE.random),
+                Qstat = .x$Q, Qdf = .x$df.Q, Qpval = .x$pval.Q
             )
         )
     ) %>%
     unnest(D)
+head(poollogratioest)
+```
+
+```{r}
+poollogratioest <- poollogratioest %>%
+    filter(cohort == "Pooled_RE") %>%
+    transmute(
+        sex, outcome, fut, Cluster, cohort,
+        pvalfdr = p.adjust(2*pnorm(-abs(ESTIMATE/SE)), "fdr") < 0.05
+    ) %>%
+    right_join(poollogratioest)
 head(poollogratioest)
 ```
 
@@ -370,20 +382,24 @@ alllogratioest <- poollogratioest %>%
             case_match(
                 cohort,
                 "ukb" ~ "UKB",
-                "maastricht" ~ "MS",
+                "maastricht" ~ "TMS",
                 "rotterdam" ~ "RS",
                 "ghs" ~ "GHS",
                 .default = cohort
             ),
-            levels = c("UKB", "MS", "RS", "GHS", "Pooled_FE", "Pooled_RE")
+            levels = c("UKB", "RS", "TMS", "GHS", "Pooled_FE", "Pooled_RE")
         ),
         PVALUE = 2*pnorm(-abs(ESTIMATE/SE)),
         LOWERCI = ESTIMATE - qnorm(.975)*SE,
-        UPPERCI = ESTIMATE + qnorm(.975)*SE
+        UPPERCI = ESTIMATE + qnorm(.975)*SE,
     ) %>%
     transmute(
         sex, outcome, Cluster, fut, cohort,
-        across(everything())
+        across(-c(pvalfdr, Qstat, Qdf, Qpval)),
+        across(
+            c(pvalfdr, Qstat, Qdf, Qpval),
+            ~ifelse(cohort == "Pooled_RE", .x, NA)
+        )
     ) %>%
     arrange(sex, outcome, Cluster, fut, cohort)
 head(alllogratioest)
@@ -391,10 +407,6 @@ head(alllogratioest)
 
 ```{r}
 write_tsv(alllogratioest, "../data/alllogratioest.tsv")
-```
-
-```{r}
-cluscolmap[cluscolmap$Cluster != "DHT",]
 ```
 
 ```{r}
@@ -564,11 +576,6 @@ print(shift10pc)
 ```
 
 ```{r}
-shift10pc$NewD %>%
-    map(select, -starts_with("alrprob"), -bmi, -age)
-```
-
-```{r}
 shift10est <- survcoefd %>%
     filter(model == "clus") %>%
     inner_join(shift10pc, by = "sex") %>%
@@ -629,12 +636,12 @@ allshift10est <- poolshift10est %>%
             case_match(
                 cohort,
                 "ukb" ~ "UKB",
-                "maastricht" ~ "MAS",
-                "rotterdam" ~ "RTD",
+                "maastricht" ~ "TMS",
+                "rotterdam" ~ "RS",
                 "ghs" ~ "GHS",
                 .default = cohort
             ),
-            levels = c("UKB", "MAS", "RTD", "GHS", "Pooled_FE", "Pooled_RE")
+            levels = c("UKB", "RS", "TMS", "GHS", "Pooled_FE", "Pooled_RE")
         ),
         pval = 2*pnorm(-abs(estimate/se)),
         hr = exp(estimate),
@@ -733,7 +740,7 @@ poolshift10est %>%
 
 ```{r}
 options(repr.plot.width = 4, repr.plot.height = 4)
-poolshift10est %>%
+shift10estp <- poolshift10est %>%
     filter(cohort == "Pooled_RE") %>%
     mutate(
         hr = exp(estimate),
@@ -767,6 +774,7 @@ poolshift10est %>%
         axis.text.x = element_text(size = 5),
         legend.position = "top"
     )
+shift10estp
 ```
 
 ## Effect estimated by baseline model
@@ -1805,7 +1813,7 @@ dcamean %>%
 
 ```{r}
 options(repr.plot.width = 7, repr.plot.height = 4.5)
-dcamean %>%
+dcap <- dcamean %>%
     mutate(
         pred = factor(
             case_match(
@@ -1836,6 +1844,7 @@ dcamean %>%
         legend.title = element_blank(),
         axis.text = element_text(size = 4)
     )
+dcap
 ```
 
 ```{r}
@@ -1978,7 +1987,7 @@ head(wdat)
 
 ```{r}
 options(repr.plot.width = 5, repr.plot.height = 3)
-dcadatclusmeandif %>%
+dcaclusp <- dcadatclusmeandif %>%
     mutate(
         Cluster = gsub("prob", "", Cluster)
     ) %>%
@@ -1995,6 +2004,17 @@ dcadatclusmeandif %>%
     facet_grid(sex ~ outcome, space = "free_y") +
     theme_bw() +
     labs(x = "Additional net benefit per 10,000", y = NULL)
+dcaclusp
+```
+
+```{r}
+options(repr.plot.width = 8, repr.plot.height = 7)
+patchwork::wrap_plots(
+    shift10estp, dcap, dcaclusp,
+    design = "AACC\n#BB#",
+    widths = c(.1,.4,.4,.1)
+) +
+    patchwork::plot_annotation(tag_levels = "A")
 ```
 
 ```{r}

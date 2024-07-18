@@ -180,7 +180,7 @@ bm_meansd <- result_crosssect %>%
             cohort,
             c(
                 "ukb" = "UKB",
-                "maastricht" = "MS",
+                "maastricht" = "TMS",
                 "rotterdam" = "RS",
                 "ghs" = "GHS"
             )
@@ -189,6 +189,255 @@ bm_meansd <- result_crosssect %>%
     separate_wider_delim(Summary1, delim = " ", names = c("Mean", "SD")) %>%
     transmute(cohort, sex, Variable, Cluster, across(c(N, Mean, SD), as.numeric))
 head(bm_meansd)
+```
+
+```{r}
+bmdiff <- bm_meansd %>%
+    group_by(cohort, sex, Variable) %>%
+    mutate(
+        across(
+            c(N, Mean, SD),
+            ~.x[Cluster == "BC"],
+            .names = "{.col}_BC"
+        )
+    ) %>%
+    ungroup %>%
+    filter(Cluster != "BC") %>%
+    mutate(
+        estimate = Mean - Mean_BC,
+        se = sqrt(
+            (SD^2/N) + 
+            (SD_BC^2/N_BC)
+        ),
+        pval = 2*pnorm(-abs(estimate/se))
+    )
+head(bmdiff)
+```
+
+```{r}
+pooledbmdiff <- bmdiff %>%
+    nest(D = -c(sex, Variable, Cluster)) %>%
+    mutate(
+        D = map(
+            D,
+            ~meta::metagen(TE = .x$estimate, seTE = .x$se)
+        ),
+        D = map(
+            D,
+            ~tibble(
+                cohort = c("Pooled_FE", "Pooled_RE"),
+                estimate = c(.x$TE.fixed, .x$TE.random), 
+                se = c(.x$seTE.fixed, .x$seTE.random)
+            )
+        )
+    ) %>%
+    unnest(D) %>%
+    mutate(
+        pval = 2*pnorm(-abs(estimate/se))
+    )
+head(pooledbmdiff)
+```
+
+```{r}
+smkdiff <- result_crosssect %>%
+    filter(element_name == "MarkerDistrib") %>%
+    unnest(element_value) %>%
+    filter(Variable == "smoking", Summary1 == 1) %>%
+    transmute(
+        sex, Variable, 
+        cohort = stringr::str_replace_all(
+            cohort,
+            c(
+                "ukb" = "UKB",
+                "maastricht" = "TMS",
+                "rotterdam" = "RS",
+                "ghs" = "GHS"
+            )
+        ),
+        Cluster = factor(Cluster, levels = cluscolmap$Cluster),
+        Smk = ceiling(as.numeric(Summary2)), 
+        NSmk = ceiling(N - as.numeric(Summary2))
+    ) %>%
+    nest(D = -c(sex, cohort, Variable)) %>%
+    mutate(
+        D = map(
+            D,
+            ~glm(cbind(Smk, NSmk) ~ Cluster, data = .x, family = binomial)
+        ),
+        D = map(D, broom::tidy),
+        D = map(
+            D, transmute,
+            Cluster = gsub("Cluster", "", term),
+            estimate, se = std.error, pval = p.value
+        )
+    ) %>%
+    unnest(D) %>%
+    filter(Cluster != "(Intercept)")
+head(smkdiff)
+```
+
+```{r}
+pooledsmkdiff <- smkdiff %>%
+    nest(D = -c(sex, Variable, Cluster)) %>%
+    mutate(
+        D = map(
+            D,
+            ~meta::metagen(TE = .x$estimate, seTE = .x$se)
+        ),
+        D = map(
+            D,
+            ~tibble(
+                cohort = c("Pooled_FE", "Pooled_RE"),
+                estimate = c(.x$TE.fixed, .x$TE.random), 
+                se = c(.x$seTE.fixed, .x$seTE.random)
+            )
+        )
+    ) %>%
+    unnest(D) %>%
+    mutate(
+        pval = 2*pnorm(-abs(estimate/se))
+    )
+head(pooledsmkdiff)
+```
+
+```{r}
+alldiffs <- list(
+    bmdiff, pooledbmdiff,
+    smkdiff, pooledsmkdiff
+) %>%
+    map(select, c(cohort, sex, Variable, Cluster, estimate, se, pval)) %>%
+    bind_rows %>%
+    nest(D = -c(sex, Variable, Cluster)) %>%
+    mutate(
+        pvalfdr = map_dbl(D, ~.x$pval[.x$cohort == "Pooled_RE"]),
+        pvalfdr = p.adjust(pvalfdr, "fdr") < 0.05
+    ) %>%
+    unnest(D)
+head(alldiffs)
+```
+
+```{r}
+options(repr.plot.width = 8, repr.plot.height = 6)
+alldiffs %>%
+    mutate(
+        ci = qnorm(1 - .05/2) * se,
+        lwr = estimate - ci,
+        upr = estimate + ci,
+        across(
+            c(estimate, upr, lwr),
+            ~ifelse(Variable == "smoking", exp(.x), .x)
+        ),
+        cohort = factor(
+            cohort,
+            levels = rev(c(
+                "UKB", "RS", "TMS", "GHS",
+                "Pooled_FE", "Pooled_RE"
+            ))
+        ),
+        Variable = toupper(Variable),
+        VarClass = ifelse(
+            Variable %in% c("AGE", "BMI", "SMOKING"),
+            "Covariates",
+            "Biomarkers"
+        ),
+        Units = case_match(
+            Variable,
+            "AGE" ~ "years",
+            "BMI" ~ "kg/m2",
+            "SMOKING" ~ "OR",
+            c("SBP", "DBP") ~ "mmHg",
+            c("HDL", "LDL", "TG", "FG") ~ "mmol/L",
+            "ALT" ~ "U/L",
+            "WHR" ~ "cm/cm",
+            "SCR" ~ "umol/L",
+            "CRP" ~ "mg/L"
+        ),
+        Variable = paste(Variable, Units, sep = "\n"),
+        Cluster = factor(Cluster, levels = cluscolmap$Cluster)
+    ) %>%
+    ggplot(aes(estimate, y = cohort)) +
+    geom_vline(
+        aes(
+            xintercept = ifelse(Variable == "SMOKING\nOR", 1, 0)
+        ),
+        lty = "dashed", color = "red"
+    ) +
+    geom_linerange(aes(xmin = lwr, xmax = upr)) +
+    geom_point(
+        aes(shape = grepl("Pooled", cohort),
+            fill = cohort == "Pooled_RE" & pvalfdr),
+        stroke = 0
+    ) +
+    scale_fill_manual(
+        name = "Significant after 5% FDR correction",
+        values = c("black", "red"),
+        guide = guide_legend(
+            position = "top",
+            override.aes = list(shape = 21)
+        )
+    ) +
+    scale_shape_manual(
+        values = c(19, 23),
+        guide = guide_none()
+    ) +
+    ggh4x::facet_nested(
+        sex + Cluster ~ VarClass + Variable, 
+        scales = "free",
+        space = "free_y",
+        strip = ggh4x::strip_nested(
+            text_y = ggh4x::elem_list_text(angle = 0), 
+            size = "variable",
+            background_y = ggh4x::elem_list_rect(
+                fill = alpha(
+                    c(
+                        "grey", "grey",
+                        cluscolmap$ClusCol[
+                            cluscolmap$Cluster != "BC"
+                        ],
+                        cluscolmap$ClusCol[
+                            !cluscolmap$Cluster %in% c("BC", "DHT")
+                        ]
+                    ),
+                    .8
+                )
+            )
+        )
+    ) +
+    ggh4x::scale_x_facet(
+        Variable == "SMOKING\nOR", 
+        limits = c(0, 2)
+    ) +
+    labs(x = NULL, y = NULL) + 
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 4),
+        axis.text.y = element_text(size = 5),
+        axis.title.x = element_text(size = 6),
+        strip.text = element_text(size = 6)
+    )
+```
+
+```{r}
+alldiffs %>%
+    mutate(
+        ci = qnorm(1 - .05/2) * se,
+        lwr = estimate - ci,
+        upr = estimate + ci
+    ) %>%
+    filter(
+        cohort == "Pooled_RE", Variable == "smoking", Cluster == "DIS"
+    ) %>%
+    transmute(
+        sex,
+        across(c(estimate, lwr, upr), exp),
+        estimate = paste0(
+            round(estimate, 2),
+            ", 95% CI: ",
+            round(lwr, 2),
+            ", ",
+            round(upr, 2)
+        )
+    )
 ```
 
 ```{r}
@@ -269,7 +518,7 @@ bm_iqr <- result_crosssect %>%
             cohort,
             c(
                 "ukb" = "UKB",
-                "maastricht" = "MS",
+                "maastricht" = "TMS",
                 "rotterdam" = "RS",
                 "ghs" = "GHS"
             )
@@ -357,7 +606,7 @@ result_crosssect %>%
             cohort,
             c(
                 "ukb" = "UKB",
-                "maastricht" = "MS",
+                "maastricht" = "TMS",
                 "rotterdam" = "RS",
                 "ghs" = "GHS"
             )
@@ -431,7 +680,7 @@ allbmieff <- pooledBMIEff %>%
             cohort,
             c(
                 "ukb" = "UKB",
-                "maastricht" = "MS",
+                "maastricht" = "TMS",
                 "rotterdam" = "RS",
                 "ghs" = "GHS"
             )
@@ -529,6 +778,27 @@ allbmieff %>%
         axis.text.x = element_text(size = 5),
         axis.title = element_text(size = 8)
     )
+```
+
+## Prevalence of diseases by cohort
+
+```{r}
+result_crosssect %>%
+    filter(element_name == "CountCovars") %>%
+    unnest(element_value) %>%
+    filter(
+        Covariate %in% c(
+            "CHD", "Stroke", "T2D", "HT", "T1D", "LiverFailure", "RA"
+        )
+    ) %>%
+    group_by(cohort, sex, Covariate) %>%
+    summarise(
+        across(c(Ncases, Nnoncases), sum),
+        .groups = "drop"
+    ) %>%
+    mutate(Prop = round(100 * Ncases/(Ncases+Nnoncases), 2)) %>%
+    select(-c(Ncases, Nnoncases)) %>%
+    pivot_wider(names_from = cohort, values_from = Prop)
 ```
 
 ## ORs of diseases relative to concordant cluster
@@ -688,6 +958,10 @@ allORs %>%
     theme(
         axis.text.x = element_text(size = 5)
     )
+```
+
+```{r}
+allORs <- read_tsv("../data/allORs.tsv", show_col_types = FALSE)
 ```
 
 ```{r}
@@ -854,6 +1128,10 @@ write_tsv(allORmeds, "../data/allORmeds.tsv")
 ```
 
 ```{r}
+allORmeds <- read_tsv("../data/allORmeds.tsv", show_col_types = FALSE)
+```
+
+```{r}
 options(repr.plot.width = 10, repr.plot.height = 3)
 allORmeds %>%
     drop_na %>%
@@ -882,12 +1160,13 @@ allORmeds %>%
 
 ```{r}
 options(repr.plot.width = 5, repr.plot.height = 3)
-allORmeds %>%
+orplot2 <- allORmeds %>%
     drop_na %>%
     filter(cohort == "Pooled_RE") %>%
     mutate(
         bigeff = OR > 10, xint = ifelse(bigeff, NA, 1),
-        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster))
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster)),
+        Covariate = factor(Covariate, levels = c("Insulin", "AntiHT", "LipidLower"))
     ) %>%
     ggplot(aes(OR, Cluster)) +
     geom_vline(aes(xintercept = xint), lty = "dashed", na.rm = TRUE) +
@@ -911,6 +1190,200 @@ allORmeds %>%
     theme_bw() +
     theme(
         axis.text.x = element_text(size = 5)
+    )
+orplot2
+```
+
+## OR of prevalent diseases adjusted by medication
+
+```{r}
+MedAdjDat <- result_crosssect %>%
+    filter(element_name %in% c("CountCovars", "CountDXMeds")) %>%
+    pivot_wider(names_from = element_name, values_from = element_value) %>%
+    mutate(
+        CountDXMeds = map(CountDXMeds, filter, Med == "NoMed"),
+        CountDXMeds = map(CountDXMeds, rename, Covariate = Dx),
+        CountDXMeds = map(CountDXMeds, select, -Med),
+        across(
+            everything(),
+            ~map(
+                .x, 
+                pivot_longer, 
+                cols = c(Ncases, Nnoncases), 
+                names_to = "DxStatus", values_to = "N"
+            )
+        ),
+        CountDXMeds = map(CountDXMeds, rename, NoMed = N),
+        CountD = map2(CountCovars, CountDXMeds, inner_join)
+    ) %>%
+    select(CountD) %>%
+    unnest(CountD) %>%
+    mutate(Med = N - NoMed) %>%
+    select(-c(Nclus, N)) %>%
+    pivot_longer(
+        c(Med, NoMed), 
+        names_to = "MedStatus", 
+        values_to = "NMed"
+    ) %>%
+    pivot_wider(names_from = DxStatus, values_from = NMed)
+head(MedAdjDat)
+```
+
+```{r}
+adjORs <- MedAdjDat %>%
+    filter(
+        Covariate %in% c(
+            "CHD", "Stroke", "T2D", "HT", "T1D", "LiverFailure", "RA"
+        )
+    ) %>%
+    mutate(
+        MedStatus = relevel(factor(MedStatus), ref = "NoMed"),
+        across(c(Ncases, Nnoncases), round)
+    ) %>%
+    nest(D = -c(sex, Covariate)) %>%
+    mutate(
+        D = map(D, drop_na),
+        D = map(
+            D,
+            ~if(length(unique(.x$cohort)) > 1){
+                glmer(
+                    cbind(Ncases, Nnoncases) ~ Cluster + MedStatus + (1|cohort),
+                    data = .x, family = binomial
+                )
+            } else {
+                glm(
+                    cbind(Ncases, Nnoncases) ~ Cluster + MedStatus,
+                    data = .x, family = binomial
+                )
+            }
+        ),
+        D = map(
+            D, 
+            ~if("glmerMod" %in% class(.x)) {
+                broom.mixed::tidy(.x, effects = "fixed")
+            } else {
+                broom::tidy(.x)
+            }
+        ),
+        D = map(D, select, term, estimate, std.error)
+    ) %>%
+    unnest(D)
+```
+
+```{r}
+head(adjORs)
+```
+
+```{r}
+adjORs %>%
+    filter(Covariate == "RA")
+```
+
+```{r}
+allORs %>%
+    filter(Covariate == "RA")
+```
+
+```{r}
+allORwithadj <- bind_rows(
+    Unadjusted = allORs %>%
+        filter(
+            Cluster != "BC",
+            (cohort == "Pooled_RE" | 
+             (Covariate == "RA" & cohort == "UKB"))
+        ) %>%
+        transmute(
+            sex, Covariate, Cluster,
+            OR, LOWERCI, UPPERCI
+        ),
+    Adjusted = adjORs %>%
+        filter(grepl("Clusterprob", term)) %>%
+        transmute(
+            sex, Covariate,
+            Cluster = gsub("Clusterprob", "", term),
+            OR = exp(estimate),
+            LOWERCI = exp(estimate - qnorm(1 - 0.05/2) * std.error),
+            UPPERCI = exp(estimate + qnorm(1 - 0.05/2) * std.error)
+    ),
+    .id = "Model"
+)
+head(allORwithadj)
+```
+
+```{r}
+write_tsv(allORwithadj, "../data/allORwithadj.tsv")
+```
+
+```{r}
+options(repr.plot.width = 10, repr.plot.height = 3)
+orplot1 <- allORwithadj %>%
+    mutate(
+        Covariate = factor(
+            Covariate,
+            levels = c(
+                "CHD", "Stroke", "T2D", "HT", "T1D", "LiverFailure", "RA"
+            )
+        ),
+        Cluster = factor(
+            Cluster, 
+            levels = rev(cluscolmap$Cluster)
+        ),
+        bigeff = OR > 10, xint = ifelse(bigeff, NA, 1)
+    ) %>%
+    ggplot(aes(OR, Cluster)) +
+    geom_vline(aes(xintercept = xint), lty = "dashed", na.rm = TRUE) +
+    geom_linerange(
+        aes(xmin = LOWERCI, xmax = UPPERCI, group = Model),
+        position = position_dodge(width = .5), linewidth = .5
+    ) +
+    geom_point(
+        aes(color = Model, group = Model), size = .75,
+        position = position_dodge(width = .5)
+    ) +
+    scale_color_manual(
+        values = c("red", "black")
+    ) +
+    ggh4x::facet_nested(
+        sex ~ Covariate + bigeff, scales = "free", space = "free_y",
+        strip = ggh4x::strip_nested(
+            size = "variable",
+            background_x = list(element_rect(), element_rect(fill = NA, colour = NA)),
+            text_x = list(element_text(), element_text(size = 0, margin = margin())),
+            by_layer_x = TRUE
+        )
+    ) +
+    ggh4x::force_panelsizes(cols = c(1, 1, 1, .5, 1, 1, .5, 1, 1)) +
+    ggh4x::scale_x_facet(!bigeff, n.breaks = 4, limits = c(0, NA)) +
+    ggh4x::scale_x_facet(bigeff, n.breaks = 4) +
+    labs(x = "OR relative to BC", y = NULL) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5),
+        legend.position = "top"
+    )
+orplot1
+```
+
+```{r}
+dxfreeprop <- readRDS("../data/dxfreeprop.rds")
+dxfreeprop
+```
+
+```{r}
+options(repr.plot.width = 8, repr.plot.height = 6)
+patchwork::wrap_plots(
+    patchwork::wrap_elements(full = orplot1),
+    orplot2, 
+    dxfreeprop + 
+        theme(
+            legend.text = element_text(size = 6),
+            legend.margin = margin()
+        ), 
+    design = "AA\nBC",
+    heights = c(.65, .35)
+) +
+    patchwork::plot_annotation(
+        tag_level = "A"
     )
 ```
 

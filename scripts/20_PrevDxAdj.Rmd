@@ -1,0 +1,190 @@
+---
+title: An R Markdown document converted from "20_PrevDxAdj.ipynb"
+output: html_document
+---
+
+# Associations with prevalent conditions adjusted for other prevalent conditions
+
+## Libraries
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+library(ggplot2)
+```
+
+```{r}
+options(repr.plot.res = 300)
+```
+
+## Pre-defined functions
+
+```{r}
+source("06_cross_sectional_FX.R")
+```
+
+## Stratified data
+
+```{r}
+load("../data/ukb/strat_dat.RData")
+```
+
+```{r}
+map(strat_dat, head)
+```
+
+## Validated clusters
+
+```{r}
+load("../data/validclusmod.RData")
+print(validclusmod)
+```
+
+## Pre-existing conditions and medications
+
+```{r}
+covar_dat <- read_tsv("../data/covar_dat.tsv", show_col_types = FALSE)
+head(covar_dat)
+```
+
+## Calculation of cluster probabilities
+
+```{r}
+clusterdfs <- clusterprobcalc(ClusModDf = validclusmod, StratDat = strat_dat)
+```
+
+```{r}
+print(clusterdfs)
+```
+
+## Adding covariates
+
+```{r}
+clusterdfs <- addcovardat(X = clusterdfs, CovarDat = covar_dat)
+```
+
+```{r}
+print(clusterdfs)
+```
+
+## Counting cases for each combination
+
+```{r}
+countdf <- clusterdfs %>%
+    expand_grid(
+        Adj = c("Un", "Dx", "Tx")
+    ) %>%
+    mutate(
+        data = map(
+            data, pivot_longer, starts_with("prob"),
+            names_to = "Cluster",
+            values_to = "ClusProb"
+        ),
+        data = map2(
+            Adj, data,
+            ~switch(
+                .x,
+                Un = group_by(.y, CHD, Cluster),
+                Dx = group_by(.y, CHD, Cluster, HT, T2D, LipidLower),
+                Tx = group_by(.y, CHD, Cluster, AntiHT, AntiDM, Insulin, LipidLower)
+            )
+        ),
+        data = map(
+            data,
+            summarise,
+            Nind = sum(ClusProb),
+            .groups = "drop"
+        ),
+        data = map(
+            data,
+            pivot_wider,
+            names_from = CHD, 
+            values_from = Nind, 
+            names_prefix = "CHD_"
+        )
+    )
+print(countdf)
+```
+
+## Binomial regressions
+
+```{r}
+binreg <- countdf %>%
+    mutate(
+        data = map(
+            data,
+            ~glm(cbind(round(CHD_1), round(CHD_0)) ~ ., data = .x, family = binomial)
+        ),
+        data = map(
+            data,
+            broom::tidy
+        )
+    ) %>%
+    unnest(data) %>%
+    filter(grepl("Cluster", term)) %>%
+    transmute(
+        sex, Adj,
+        Cluster = gsub("Clusterprob", "", term),
+        OR = exp(estimate),
+        LOWERCI = exp(estimate - qnorm(1 - .05/2)*std.error),
+        UPPERCI = exp(estimate + qnorm(1 - .05/2)*std.error)
+    )
+head(binreg)
+```
+
+## Cluster map
+
+```{r}
+cluscolmap <- validclusmod %>%
+    transmute(
+        clusmod = map(clusmod, select, Cluster = validclus_name, W = validclus_weights)
+    ) %>%
+    unnest(clusmod) %>%
+    group_by(Cluster) %>%
+    summarise(W2 = exp(sum(log((W))))) %>%
+    arrange(-W2) %>%
+    mutate(
+        Cluster = factor(Cluster, levels = Cluster),
+        ClusCol = scales::hue_pal()(n())
+    )
+cluscolmap
+```
+
+## Plotting results
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 3)
+binreg %>%
+    mutate(
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster)),
+        Adj = factor(
+            Adj,
+            levels = c("Un", "Dx", "Tx"),
+            labels = c("None", "With\ncomorbidities", "With\ntreatment")
+        ),
+    ) %>%
+    ggplot(aes(OR, Cluster)) +
+    geom_vline(xintercept = 1, lty = "dashed", na.rm = TRUE) +
+    geom_linerange(
+        aes(xmin = LOWERCI, xmax = UPPERCI, group = Adj),
+        position = position_dodge(width = .5), linewidth = .5
+    ) +
+    geom_point(
+        aes(color = Adj, group = Adj), size = .75,
+        position = position_dodge(width = .5)
+    ) +
+    scale_color_manual(
+        values = c("black", "red", "green")
+    ) +
+    facet_grid(
+        ~sex, scales = "free", space = "free_y"
+    ) +
+    labs(x = "CAD OR relative to BC", y = NULL, color = "Adjustment") +
+    theme_bw() +
+    theme(
+        legend.position = "top"
+    )
+```
+

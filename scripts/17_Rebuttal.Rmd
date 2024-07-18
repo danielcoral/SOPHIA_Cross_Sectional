@@ -1,0 +1,1511 @@
+---
+title: An R Markdown document converted from "17_Rebuttal.ipynb"
+output: html_document
+---
+
+# Reviewer's comments
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr)
+library(purrr)
+library(ggplot2)
+```
+
+```{r}
+options(repr.plot.res = 300)
+```
+
+## Reviewer #1
+
+1. The authors identified the five BMI-discordant profiles (DHT, DAL, DLT, DIS, and DHG). However, as they could easily assign these profile names, all these profiles were just characterized by a single biomarker (or a few biomarkers which are well-known to be highly associated with each other, such as TG, LDL, and HDL for the DAL profile) (lines 144–152 of pages 10–11; Figure 1 right panel). Therefore, it is unclear about the advantage of using the identified profiles compared to simply using each biomarker-based classification (with BMI). Based on the authors' aim, I would have expected profiles that were characterized by multiple biomarkers (with various weights) whose associations are not so obvious (e.g., TG vs. CRP). Hence, I have concerns about the conceptual advances of the identified discordant profiles. Even if the authors keep claiming the usefulness of the current discordant profiles, they must present the comparisons between the identified discordant profiles and the single biomarker-based profiles in their downstream analyses (e.g., the additional net benefits by including the profile information), because the current analyses just evaluate the comparisons between with vs. without the discordant profile information.
+
+R/
+
+The reviewer accurately points out that the clusters we have identified are largely characterised by a single biomarker being at values that are higher than the expected for their BMI.
+
+```{r}
+load("../data/validclusmod.RData")
+```
+
+```{r}
+print(validclusmod)
+```
+
+```{r}
+validclusmod <- validclusmod %>%
+    mutate(
+        umapmod = map(
+            sex,
+            ~uwot::load_uwot(paste0("../data/ukb/umapmod_", .x))
+        )
+    )
+print(validclusmod)
+```
+
+Let's see what happens when we take an individual that is 1) predominantly concordant, and then 2) increase triglycerides only, or 3) increase LDL and decrease HDL (what happens in DAL):
+
+```{r}
+NewInd <- tibble(
+    eid = 1:3,
+    whr = 1,
+    sbp = 140, 
+    dbp = 80, 
+    alt = 28, 
+    scr = 70, 
+    crp = 2.5, 
+    hdl = c(1.3, 1.3, 1), 
+    tg = c(1.8, 3.1, 3.1),
+    ldl = c(3.5, 3.5, 4.5),
+    fg = 5
+)
+validclusmod %>%
+    filter(sex == "Male") %>%
+    transmute(
+        resids = map(
+            residmod,
+            ~.x %>%
+                transmute(
+                    Biomarker,
+                    PredValue = Intercept + (bmi * 30) + (age * 55),
+                    ResidValue = pmap(
+                        list(Biomarker, PredValue, SDRes),
+                        function(BM, PV, SDV, NewD = NewInd){
+                            (NewD[,BM,drop=TRUE] - PV) / SDV
+                        }
+                    )
+                ) %>%
+                select(Biomarker, ResidValue) %>%
+                pivot_wider(names_from = Biomarker, values_from = ResidValue) %>%
+                unnest(everything()) %>%
+                as.matrix
+        ),
+        probs = map2(
+            resids, clusmod,
+            function(RESIDDF, CLUSMOD){
+                BIOMARKERS <- c("whr", "sbp", "dbp", "alt", "scr", "crp", "hdl", "tg", "ldl", "fg")
+                RESIDDF <- RESIDDF[,BIOMARKERS]
+                mus <- CLUSMOD$validclus_centers
+                mus <- map(mus, function(mu){ mu[BIOMARKERS] })
+                covmats <- CLUSMOD$validclus_covmats
+                covmats <- map(covmats, function(covmat){ covmat[BIOMARKERS, BIOMARKERS] })
+                wts <- CLUSMOD$validclus_weights
+                pdfs <- mapply(
+                    function(mu, covmat){ mvtnorm::dmvnorm(RESIDDF, mu, covmat) },
+                    mus, covmats
+                )
+                L <- pdfs %*% diag(wts)
+                colnames(L) <- paste0("prob", CLUSMOD$validclus_name)
+                tibble(data.frame(L / rowSums(L)))
+            }
+        )
+    ) %>%
+    pull(probs) %>%
+    pluck(1) %>%
+    round(2)
+```
+
+Now let's take the DHG profile and show what happens when a 1) concordant person has 2) isolated hyperglycaemia or 2) has also lower LDL and HDL - the other caracteristic of DHG.
+
+```{r}
+NewInd <- tibble(
+    eid = 1:3,
+    whr = 0.99,
+    sbp = 140, 
+    dbp = 80, 
+    alt = 28, 
+    scr = 70, 
+    crp = 2.1, 
+    hdl = c(1.3, 1.3, 1),
+    tg = 1.8,
+    ldl = c(3.5, 3.5, 2.5),
+    fg = c(4.9, 6.7, 6.7)
+)
+validclusmod %>%
+    filter(sex == "Male") %>%
+    transmute(
+        resids = map(
+            residmod,
+            ~.x %>%
+                transmute(
+                    Biomarker,
+                    PredValue = Intercept + (bmi * 30) + (age * 55),
+                    ResidValue = pmap(
+                        list(Biomarker, PredValue, SDRes),
+                        function(BM, PV, SDV, NewD = NewInd){
+                            (NewD[,BM,drop=TRUE] - PV) / SDV
+                        }
+                    )
+                ) %>%
+                select(Biomarker, ResidValue) %>%
+                pivot_wider(names_from = Biomarker, values_from = ResidValue) %>%
+                unnest(everything()) %>%
+                as.matrix
+        ),
+        probs = map2(
+            resids, clusmod,
+            function(RESIDDF, CLUSMOD){
+                BIOMARKERS <- c("whr", "sbp", "dbp", "alt", "scr", "crp", "hdl", "tg", "ldl", "fg")
+                RESIDDF <- RESIDDF[,BIOMARKERS]
+                mus <- CLUSMOD$validclus_centers
+                mus <- map(mus, function(mu){ mu[BIOMARKERS] })
+                covmats <- CLUSMOD$validclus_covmats
+                covmats <- map(covmats, function(covmat){ covmat[BIOMARKERS, BIOMARKERS] })
+                wts <- CLUSMOD$validclus_weights
+                pdfs <- mapply(
+                    function(mu, covmat){ mvtnorm::dmvnorm(RESIDDF, mu, covmat) },
+                    mus, covmats
+                )
+                L <- pdfs %*% diag(wts)
+                colnames(L) <- paste0("prob", CLUSMOD$validclus_name)
+                tibble(data.frame(L / rowSums(L)))
+            }
+        )
+    ) %>%
+    pull(probs) %>%
+    pluck(1) %>%
+    round(2)
+```
+
+Additional information of discordant profiles to models containing single biomarker discordances - represented by biomarker-BMI ratios.
+
+```{r}
+load("../data/ukb/strat_dat.RData")
+```
+
+```{r}
+map(strat_dat, head)
+```
+
+Then the covariate data:
+
+```{r}
+covar_dat <- read_tsv("../data/covar_dat.tsv", show_col_types = FALSE)
+head(covar_dat)
+```
+
+Then the survival data:
+
+```{r}
+survmacedat <- read_tsv("../data/survmacedat.tsv", show_col_types = FALSE)
+head(survmacedat)
+```
+
+```{r}
+survdmdat <- read_tsv("../data/survdmdat.tsv", show_col_types = FALSE)
+head(survdmdat)
+```
+
+Calculate cluster probabilities:
+
+```{r}
+BIOMARKERS <- c("whr", "sbp", "dbp", "alt", "scr", "crp", "hdl", "tg", "ldl", "fg")
+BODYSIZEINDEX <- "bmi"
+COVARIATES <- c("age", "smoking")
+DISEASES <- c("HT", "CHD", "Stroke", "PAD", "CKD", "LiverFailure", "RA", "T2D", "T1D")
+MEDICATION <- c("Insulin", "AntiDM", "AntiHT", "LipidLower")
+```
+
+```{r}
+clusterdfs <- validclusmod %>%
+    mutate(
+        Data = map(sex, ~strat_dat[[.x]]),
+        resids = map2(
+            Data, residmod,
+            function(DATA, RESIDMOD){
+                sapply(
+                    BIOMARKERS,
+                    function(biomarker){
+                        PREDICTDAT <- as.matrix(cbind(Intercept = 1, DATA[,c(BODYSIZEINDEX, COVARIATES)]))
+                        MODELDAT <- filter(RESIDMOD, Biomarker == biomarker)
+                        RESIDSD <- MODELDAT$SDRes
+                        COEFDAT <- MODELDAT[,c("Intercept", BODYSIZEINDEX, COVARIATES)]
+                        COEFDAT <- t(COEFDAT)
+                        PREDVAL <- as.vector(PREDICTDAT %*% COEFDAT)
+                        RESIDVAL <- DATA[[biomarker]] - PREDVAL
+                        RESIDVAL / RESIDSD
+                    }
+                )
+            }
+        ),
+        probs = map2(
+            resids, clusmod,
+            function(RESIDDF, CLUSMOD){
+                mus <- CLUSMOD$validclus_centers
+                mus <- map(mus, function(mu){ mu[BIOMARKERS] })
+                covmats <- CLUSMOD$validclus_covmats
+                covmats <- map(covmats, function(covmat){ covmat[BIOMARKERS, BIOMARKERS] })
+                wts <- CLUSMOD$validclus_weights
+                pdfs <- mapply(function(mu, covmat){ mvtnorm::dmvnorm(RESIDDF, mu, covmat) }, mus, covmats)
+                L <- pdfs %*% diag(wts)
+                colnames(L) <- paste0("prob", CLUSMOD$validclus_name)
+                data.frame(L / rowSums(L))
+            }
+        ),
+        Data = map2(Data, probs, bind_cols),
+        resids = NULL, probs = NULL,
+        Data = map(Data, inner_join, covar_dat, by = "eid")
+    )
+print(clusterdfs)
+```
+
+Models for MACE:
+
+```{r}
+clusmacedfs <- clusterdfs %>%
+    mutate(
+        Data = map(Data, inner_join, survmacedat, by = "eid"),
+        Data = map(Data, filter, CHD == 0, Stroke == 0, PAD == 0),
+        Data = map2(
+            Data, sex,
+            function(DATA, SEX){
+                MODELDAT <- transmute(
+                    DATA,
+                    outcome_value,
+                    outcome_timeyrs,
+                    age,
+                    smoking,
+                    bmi,
+                    sbp,
+                    tchol = hdl + ldl + (tg/2.2),
+                    hdl,
+                    age_smoking = age*smoking,
+                    age_sbp = age*sbp,
+                    age_tchol = age*tchol,
+                    age_hdl = age*hdl,
+                    fg,
+                    scr = scr / 88.42,
+                    alpha = case_when(SEX == "Female" ~ -0.241, SEX == "Male" ~ -0.302),
+                    kappa = case_when(SEX == "Female" ~ 0.7, SEX == "Male" ~ 0.9),
+                    creat_kappa = scr / kappa,
+                    minkappa = pmin(creat_kappa, 1), 
+                    maxkappa = pmax(creat_kappa, 1),
+                    minkappa_alpha = minkappa^alpha,
+                    maxkappa_exp = maxkappa^(-1.200),
+                    age_term = 0.9938^age,
+                    sex_term = case_when(SEX == "Female" ~ 1.012, SEX == "Male" ~ 1), 
+                    egfr = 142 * minkappa_alpha * maxkappa_exp * age_term * sex_term,
+                    lnegfr = log(egfr + 0.01),
+                    lnegfrsq = lnegfr^2,
+                    age_fg = age*fg,
+                    age_lnegfr = age*lnegfr,
+                    whr, alt, crp,
+                    across(
+                        any_of(
+                            c("T2D", "T2Dage", "HT", "CKD", "LiverFailure", "RA", "T1D",
+                              "Insulin", "AntiDM", "AntiHT", "LipidLower")
+                        )
+                    ),
+                    across(all_of(BIOMARKERS), \(x){ x/bmi }, .names = "{.col}_ratio"),
+                    across(starts_with("prob"), \(x) ifelse(x < 1e-15, 1e-15, x)),
+                    across(starts_with("prob"), \(x) ifelse(x > (1 - 1e-15), (1 - 1e-15), x)),
+                    across(starts_with("prob"), \(P) log(P/probBC), .names = "alr{.col}"),
+                    alrprobBC = NULL,
+                    across(starts_with("prob"), \(P) NULL)
+                )
+                if(any(names(MODELDAT) == "T2D")){
+                    MODELDAT$age_t2d <- MODELDAT$age * MODELDAT$T2D
+                }
+                select(
+                    MODELDAT, 
+                    -c(scr, alpha, kappa, creat_kappa, minkappa, maxkappa, 
+                       minkappa_alpha, maxkappa_exp, age_term, sex_term, egfr)
+                )
+            }
+        )
+    )
+print(clusmacedfs)
+```
+
+```{r}
+clusmacedfs$Data[[1]] %>% names
+```
+
+```{r}
+clusmacedfs %>%
+    mutate(
+        NullMod = map(
+            Data, 
+            ~survival::coxph(
+                survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ 1, 
+                data = .x
+            )
+        ),
+        mod_base = map(
+            Data,
+            ~{
+                MODELDAT <- select(.x, -starts_with("alrprob"))
+                survival::coxph(
+                    survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., 
+                    data = MODELDAT
+                )
+            }
+        ),
+        mod_clus = map(
+            Data,
+            ~survival::coxph(
+                survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., 
+                data = .x
+            )
+        )
+    ) %>%
+    transmute(
+        sex,
+        LL0 = purrr::map_dbl(NullMod, logLik),
+        LLBase = purrr::map_dbl(mod_base, logLik),
+        NVBase = purrr::map_dbl(mod_base, \(MOD) sum(!is.na(MOD$coefficients))),
+        LLBaseCl = purrr::map_dbl(mod_clus, logLik),
+        NVBaseCl = purrr::map_dbl(mod_clus, \(MOD) sum(!is.na(MOD$coefficients))),
+        LRTstat = 2 * abs(LLBaseCl - LLBase),
+        LRTdf = NVBaseCl - NVBase,
+        LRTp = stats::pchisq(
+            q = LRTstat,
+            df = LRTdf,
+            lower.tail = FALSE
+        ),
+        AdeqInd = (LLBase - LL0) / (LLBaseCl - LL0),
+        RelExpVar = round(100 * (1 - AdeqInd), 2)
+    )
+```
+
+For diabetes:
+
+```{r}
+clusdmdfs <- clusterdfs %>%
+    mutate(
+        Data = map(Data, inner_join, survdmdat, by = "eid"),
+        Data = map(Data, filter, T2D == 0, T1D == 0, Insulin == 0, AntiDM == 0),
+        Data = purrr::map(
+            Data,
+            function(DATA){
+                dplyr::transmute(
+                    DATA,
+                    outcome_timeyrs, outcome_value,
+                    across(
+                        any_of(
+                            c(
+                                BIOMARKERS,
+                                BODYSIZEINDEX,
+                                COVARIATES,
+                                DISEASES[!DISEASES %in% c("T1D", "T2D")],
+                                MEDICATION[!MEDICATION %in% c("Insulin", "AntiDM")]
+                            )
+                        )
+                    ),
+                    across(all_of(BIOMARKERS), \(x){ x/bmi }, .names = "{.col}_ratio"),
+                    across(starts_with("prob"), \(x) ifelse(x < 1e-15, 1e-15, x)),
+                    across(starts_with("prob"), \(x) ifelse(x > (1 - 1e-15), (1 - 1e-15), x)),
+                    across(starts_with("prob"), \(P) log(P/probBC), .names = "alr{.col}"),
+                    alrprobBC = NULL,
+                    across(starts_with("prob"), \(P) NULL)
+                )
+            }
+        )
+    )
+print(clusdmdfs)
+```
+
+```{r}
+clusdmdfs$Data[[1]] %>% names
+```
+
+```{r}
+clusdmdfs %>%
+    mutate(
+        NullMod = map(
+            Data, 
+            ~survival::coxph(
+                survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ 1, 
+                data = .x
+            )
+        ),
+        mod_base = map(
+            Data,
+            ~{
+                MODELDAT <- select(.x, -starts_with("alrprob"))
+                survival::coxph(
+                    survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., 
+                    data = MODELDAT
+                )
+            }
+        ),
+        mod_clus = map(
+            Data,
+            ~survival::coxph(
+                survival::Surv(time = outcome_timeyrs, event = outcome_value) ~ ., 
+                data = .x
+            )
+        )
+    ) %>%
+    transmute(
+        sex,
+        LL0 = purrr::map_dbl(NullMod, logLik),
+        LLBase = purrr::map_dbl(mod_base, logLik),
+        NVBase = purrr::map_dbl(mod_base, \(MOD) sum(!is.na(MOD$coefficients))),
+        LLBaseCl = purrr::map_dbl(mod_clus, logLik),
+        NVBaseCl = purrr::map_dbl(mod_clus, \(MOD) sum(!is.na(MOD$coefficients))),
+        LRTstat = 2 * abs(LLBaseCl - LLBase),
+        LRTdf = NVBaseCl - NVBase,
+        LRTp = stats::pchisq(
+            q = LRTstat,
+            df = LRTdf,
+            lower.tail = FALSE
+        ),
+        AdeqInd = (LLBase - LL0) / (LLBaseCl - LL0),
+        RelExpVar = round(100 * (1 - AdeqInd), 2)
+    )
+```
+
+# Projection using other methods
+
+```{r}
+load("../data/ukb/residtab.RData")
+```
+
+```{r}
+map(residtab, head)
+```
+
+```{r}
+probdfs <- residtab %>%
+    imap(
+        ~{
+            RESIDDF <- residtab[[.y]][,-1]
+            CLUSMOD <- validclusmod$clusmod[validclusmod$sex == .y][[1]]
+            pdfs <- mapply(
+                function(mu, covmat){ mvtnorm::dmvnorm(RESIDDF, mu, covmat) },
+                CLUSMOD$validclus_centers, 
+                CLUSMOD$validclus_covmats
+            )
+            L <- pdfs %*% diag(CLUSMOD$validclus_weights)
+            colnames(L) <- paste0("prob", CLUSMOD$validclus_name)
+            tibble(data.frame(L / rowSums(L)))
+        }
+    )
+```
+
+```{r}
+map(probdfs, head)
+```
+
+```{r}
+maxprobdat <- probdfs %>%
+    map(
+        ~{
+            MAXCLUS <- apply(.x, 1, \(x) colnames(.x)[which.max(x)])
+            MAXCLUSP <- apply(.x, 1, max)
+            tibble(data.frame(Cluster = MAXCLUS, Prob = MAXCLUSP))
+        }
+    )
+map(maxprobdat, head)
+```
+
+```{r}
+tsne <- map(
+    residtab,
+    ~Rtsne::Rtsne(
+        .x[,-1], 
+        dims = 2,
+        perplexity = 30,
+        max_iter = 500,
+        check_duplicates = FALSE
+    )
+)
+```
+
+```{r}
+cluscolmap <- validclusmod %>%
+    transmute(
+        clusmod = map(clusmod, select, Cluster = validclus_name, W = validclus_weights)
+    ) %>%
+    unnest(clusmod) %>%
+    group_by(Cluster) %>%
+    summarise(W2 = exp(sum(log((W))))) %>%
+    arrange(-W2) %>%
+    mutate(
+        Cluster = factor(Cluster, levels = Cluster),
+        ClusCol = scales::hue_pal()(n())
+    )
+cluscolmap
+```
+
+```{r}
+options(repr.plot.res = 300, repr.plot.width = 6, repr.plot.height = 3)
+tsne %>%
+    map("Y") %>%
+    imap(~data.frame(.x, maxprobdat[[.y]])) %>%
+    bind_rows(.id = "sex") %>%
+    filter(Prob >= .95) %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(aes(color = Cluster), shape = ".", alpha = .1) +
+    scale_color_discrete(
+        guide = guide_legend(
+            override.aes = list(shape = 19, alpha = 1)
+        )
+    ) +
+    facet_grid(~sex) +
+    theme_bw() +
+    labs(x = "t-SNE dim 1", y = "t-SNE dim 2")
+```
+
+```{r}
+cv_kpc <- map(
+    1:5,
+    function(cvn){
+        set.seed(cvn)
+        SAMP <- sample(60000, 10000)
+        map(
+            residtab,
+            function(x){
+                mod <- kernlab::kpca(
+                    x = ~.,
+                    data = x[SAMP,-1],
+                    kernel = "rbfdot",
+                    features = 2
+                )
+                kernlab::predict(mod, x[,-1])
+            }
+        )
+    }
+)
+```
+
+```{r}
+cvkpcres <- cv_kpc %>%
+    map(
+        function(CVS){
+            imap(
+                CVS,
+                function(DAT, SEX){
+                    tibble(data.frame(DAT, maxprobdat[[SEX]]))
+                }
+            ) %>%
+            bind_rows(.id = "sex")
+        }
+    ) %>%
+    bind_rows(.id = "cvn")
+head(cvkpcres)
+```
+
+```{r}
+options(repr.plot.res = 300, repr.plot.width = 8, repr.plot.height = 3)
+cvkpcres %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(aes(color = Cluster), shape = ".", alpha = .1) +
+    scale_color_discrete(
+        guide = guide_legend(
+            override.aes = list(shape = 19, alpha = 1)
+        )
+    ) +
+    facet_grid(sex~cvn) +
+    theme_bw() +
+    labs(x = "PC1", y = "PC2")
+```
+
+## Colinearity across variables
+
+```{r}
+strat_dat %>%
+    bind_rows %>%
+    count(age <= 50) %>%
+    mutate(prop = round(100*n/sum(n), 2))
+```
+
+```{r}
+corsig <- strat_dat %>%
+    map(select, -c(eid, sex, age, bmi, smoking)) %>%
+    map(cor) %>%
+    map(~{.x[lower.tri(.x, diag = TRUE)] <- NaN;.x}) %>%
+    map(reshape2::melt, na.rm = TRUE) %>%
+    bind_rows(.id = "sex") %>%
+    group_by(Var1, Var2) %>%
+    filter(any(abs(value) > 0.2)) %>%
+    ungroup %>%
+    pivot_wider(names_from = sex, names_prefix = "bf_")
+corsig
+```
+
+```{r}
+residtab %>%
+    map(select, sbp, dbp, whr, alt, crp, hdl, tg, ldl) %>%
+    map(cor) %>%
+    map(~{.x[lower.tri(.x, diag = TRUE)] <- NaN;.x}) %>%
+    map(reshape2::melt, na.rm = TRUE) %>%
+    bind_rows(.id = "sex") %>%
+    pivot_wider(names_from = sex, names_prefix = "af_") %>%
+    inner_join(corsig) %>%
+    transmute(
+        across(starts_with("Var")),
+        across(c(bf_Female, af_Female), \(x) round(x, digits = 2)),
+        across(c(bf_Male, af_Male), \(x) round(x, digits = 2))
+    )
+```
+
+```{r}
+hclustdat <- residtab %>%
+    map(select, -eid, -dbp) %>%
+    map(as.matrix) %>%
+    map(ClustOfVar::hclustvar)
+```
+
+```{r}
+hclustdat <- residtab %>%
+    map(select, -eid) %>%
+    map(cor) %>%
+    map(~as.dist(1 - .x)) %>%
+    map(hclust, method = "single")
+```
+
+```{r}
+plot(hclustdat$Female)
+```
+
+```{r}
+plot(hclustdat$Male)
+```
+
+```{r}
+pcdat <- residtab %>%
+    map(~prcomp(.x[,-1]))
+```
+
+```{r}
+options(repr.plot.res = 300, repr.plot.width = 8, repr.plot.height = 3)
+pcdat %>%
+    map(~{
+        eigs <- .x$sdev^2
+        tibble(X = paste0("PC", 1:length(eigs)),
+               VarExp = eigs / sum(eigs))
+    }) %>%
+    bind_rows(.id = "sex") %>%
+    ggplot(aes(reorder(X, desc(VarExp)), 100*VarExp)) +
+    geom_col() +
+    #geom_hline(yintercept = 95, lty = "dashed", color = "red") +
+    facet_grid(~sex) +
+    theme_bw() +
+    labs(x = NULL, y = "%VarExp")
+```
+
+```{r}
+options(repr.plot.res = 300, repr.plot.width = 8, repr.plot.height = 3)
+pcdat %>%
+    map(~{
+        eigs <- .x$sdev^2
+        tibble(X = paste0("PC", 1:length(eigs)),
+               VarExp = eigs / sum(eigs)) %>%
+        mutate(CumVarExp = cumsum(VarExp))
+    }) %>%
+    bind_rows(.id = "sex") %>%
+    ggplot(aes(reorder(X, desc(VarExp)), 100*CumVarExp)) +
+    geom_col() +
+    geom_hline(yintercept = 90, lty = "dashed", color = "red") +
+    facet_grid(~sex) +
+    theme_bw() +
+    labs(x = NULL, y = "Cumulative\n%VarExp")
+```
+
+```{r}
+pcumap <- map(
+    pcdat,
+    ~uwot::umap(
+        X = .x$x[,1:8],
+        n_components = 2, 
+        n_neighbors = max(10, round(10 + 15 * (log10(nrow(.x$x) - 4)))), 
+        nn_method = "annoy", n_trees = 100, n_sgd_threads = "auto", 
+        init = "pca", n_epochs = 500, approx_pow = TRUE,
+        binary_edge_weights = TRUE, dens_scale = 1, 
+        ret_extra = c("model", "fgraph"), verbose = FALSE       
+    )
+)
+```
+
+```{r}
+cluscolmap
+```
+
+```{r}
+options(repr.plot.res = 300, repr.plot.width = 7, repr.plot.height = 4)
+pcumap %>%
+    map("embedding") %>%
+    map(data.frame) %>%
+    map2(maxprobdat, bind_cols) %>%
+    bind_rows(.id = "sex") %>%
+    filter(Prob > .8) %>%
+    mutate(Cluster = gsub("prob", "", Cluster)) %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(aes(color = Cluster), alpha = .1, shape = ".") +
+    scale_alpha_identity() +
+    scale_color_manual(
+        values = setNames(
+            cluscolmap$ClusCol,
+            cluscolmap$Cluster
+        ),
+        guide = guide_legend(
+            override.aes = list(shape = 19, alpha = 1)
+        )
+    ) +     
+    facet_wrap(~sex) +
+    theme_bw() +
+    labs(x = "UMAP1", y = "UMAP2")
+```
+
+```{r}
+validclusmod %>%
+    transmute(
+        sex,
+        modularity = map2_dbl(
+            umapmod, maxprobdat,
+            ~{
+                Gr <- igraph::graph_from_adjacency_matrix(
+                    .x$fgraph, mode = "undirected"
+                )
+                memb <- as.numeric(factor(.y$Cluster))
+                igraph::modularity(Gr, memb)
+            }   
+        )
+    )
+```
+
+```{r}
+pcumap %>%
+    imap(
+        ~{
+            Gr <- igraph::graph_from_adjacency_matrix(
+                .x$fgraph, mode = "undirected"
+            )
+            MAXPROB <- maxprobdat[[.y]]
+            igraph::V(Gr)$name <- 1:nrow(MAXPROB)
+            MAXPROB %>%
+                mutate(eid = row_number()) %>%
+                nest(DAT = -Cluster) %>%
+                transmute(
+                    Cluster,
+                    tval = map_dbl(
+                        DAT,
+                        function(XCL){
+                            clusGr <- igraph::induced_subgraph(Gr, as.character(XCL$eid))
+                            igraph::transitivity(clusGr)
+                        }
+                    )
+                )
+        }
+    )
+```
+
+```{r}
+pcclusparams <- pcdat %>%
+    map2(
+        probdfs, 
+        function(PCD, PRB){
+            apply(
+                PRB, 2, 
+                function(clus){
+                    cov.wt(
+                        x = PCD$x[,1:8], 
+                        wt = clus
+                    )
+                }
+            )
+        }
+    )
+```
+
+```{r}
+coord_straightpolar <- function(theta = 'x', start = 0, direction = 1, clip = "on") {
+  theta <- match.arg(theta, c("x", "y"))
+  r <- if (theta == "x") 
+    "y"
+  else "x"
+  ggproto(NULL, CoordPolar, theta = theta, r = r, start = start,
+          direction = sign(direction), clip = clip,
+          # This is the different bit
+          is_linear = function(){TRUE})
+}
+```
+
+```{r}
+pcclusparams %>%
+    map(map, "center") %>%
+    map(
+        map, 
+        ~tibble(
+            VAR = names(.x), 
+            value = .x
+        )
+    ) %>%
+    map(bind_rows, .id = "Cluster") %>%
+    bind_rows(.id = "sex") %>%
+    ggplot(aes(VAR, value)) +
+    geom_polygon(
+        group = 1, 
+        color = "blue",
+        linewidth = .2,
+        fill = alpha("grey", .25)
+    ) +
+    geom_point(size = .25) +
+    coord_straightpolar(theta = "x") +
+    facet_grid(sex ~ Cluster) +
+    theme_bw()
+```
+
+```{r}
+pcprobs <- imap(
+    pcdat,
+    function(PCD, SEX){
+        DAT <- PCD$x[,1:8]
+        PCL <- pcclusparams[[SEX]]
+        MUs <- map(PCL, "center")
+        COVMATs <- map(PCL, "cov")
+        W <- validclusmod$clusmod[
+            validclusmod$sex == SEX
+        ][[1]]$validclus_weights
+        pdfs <- mapply(
+            function(mu, covmat){ mvtnorm::dmvnorm(DAT, mu, covmat) },
+            MUs, COVMATs
+        )
+        L <- pdfs %*% diag(W)
+        colnames(L) <- names(PCL)
+        tibble(data.frame(L / rowSums(L)))
+    }
+)
+```
+
+```{r}
+pcprobs$Female %>% head
+```
+
+```{r}
+pcprobs %>%
+    map(
+        ~{
+            pp <- pmax(as.matrix(.x), .Machine$double.xmin)
+            ent <- -sum(pp * log(pp))
+            1 - ent / (nrow(pp) * log(ncol(pp)))
+        }
+    )
+```
+
+```{r}
+gausmixres <- pcdat %>% 
+    map(
+        ~mclust::mclustBIC(data = .x$x[,1:8], G = 1:20, modelNames = "VVV")
+    )
+```
+
+```{r}
+options(repr.plot.height = 3, repr.plot.width = 7)
+gausmixres %>%
+    map(
+        ~data.frame(
+            Nclus = 1:20,
+            BIC = .x[,1]
+        )
+    ) %>%
+    bind_rows(.id = "sex") %>%
+    ggplot(aes(Nclus, BIC)) +
+    geom_line() +
+    geom_point() +
+    facet_wrap(~sex, scales = "free") +
+    theme_bw()
+```
+
+```{r}
+gmbest <- pcdat %>% 
+    map(
+        ~{
+            mclustBIC <- mclust::mclustBIC
+            mclust::Mclust(.x$x[,1:8], G = 4, modelNames = "VVV")
+        }
+    )
+```
+
+```{r}
+gmbest %>%
+    map(
+        ~{
+            pp <- pmax(as.matrix(.x$z), .Machine$double.xmin)
+            ent <- -sum(rowSums(pp * log(pp)))
+            1 - ent / (nrow(pp) * log(ncol(pp)))
+        }
+    ) %>%
+    map(round, 2)
+```
+
+```{r}
+gpairs_lower <- function(g){
+  g$plots <- g$plots[-(1:g$nrow)]
+  g$yAxisLabels <- g$yAxisLabels[-1]
+  g$nrow <- g$nrow -1
+
+  g$plots <- g$plots[-(seq(g$ncol, length(g$plots), by = g$ncol))]
+  g$xAxisLabels <- g$xAxisLabels[-g$ncol]
+  g$ncol <- g$ncol - 1
+
+  g
+}
+```
+
+```{r}
+pcdat %>%
+    map("x") %>%
+    map_dbl(~max(abs(.x))) %>%
+    max %>%
+    round
+```
+
+```{r}
+options(repr.plot.height = 1, repr.plot.width = 10)
+cluscolp <- cluscolmap %>%
+    ggplot(aes(Cluster, W2, color = Cluster)) +
+    geom_point() +
+    scale_color_discrete(
+        guide = guide_legend(
+            position = "top",
+            direction = "horizontal",
+            nrow = 1
+        )
+    ) +
+    theme_bw()
+cluscolguide <- GGally::grab_legend(cluscolp)
+cluscolguide
+```
+
+```{r}
+GPointsUpper <- function(data, mapping, ...){
+    GGally::ggally_points(data, mapping, ...) +
+    scale_color_manual(
+            values = setNames(
+                cluscolmap$ClusCol,
+                cluscolmap$Cluster
+            )
+    ) +
+    scale_x_continuous(
+        limits = c(-10,10),
+        breaks = c(-5, 0, 5)
+    ) +
+    scale_y_continuous(
+        limits = c(-10,10),
+        breaks = c(-5, 0, 5)
+    )
+}
+GPointsLower <- function(data, mapping, ...){
+    GGally::ggally_points(data, mapping, ...) +
+    scale_x_continuous(
+        limits = c(-10,10),
+        breaks = c(-5, 0, 5)
+    ) +
+    scale_y_continuous(
+        limits = c(-10,10),
+        breaks = c(-5, 0, 5)
+    )
+}
+GDiagFx <- function(data, mapping, ...){
+    GGally::ggally_densityDiag(data, mapping, ...) +
+    scale_x_continuous(
+        limits = c(-10,10),
+        breaks = c(-5, 0, 5)
+    ) +
+    theme(
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()
+    )
+}
+```
+
+```{r}
+g <- pcdat %>%
+    map("x") %>%
+    map(data.frame) %>%
+    map2(maxprobdat, bind_cols) %>%
+    map(mutate, Cluster = gsub("prob", "", Cluster)) %>%
+    map(
+        GGally::ggpairs,
+        columns = 1:10,
+        mapping = aes(color = Cluster),
+        lower = list(
+            continuous = GGally::wrap(
+                GPointsUpper,
+                shape = ".", alpha = .1
+            )
+        ),
+        diag = list(
+            continuous = GGally::wrap(
+                GDiagFx,
+                color = "black", fill = "grey",
+                linewidth = .1
+            )
+        ),
+        upper = list(
+            continuous = GGally::wrap(
+                GPointsLower, 
+                color = "black", 
+                shape = ".", alpha = .1
+            )
+        )
+    ) %>%
+    map(
+        ~.x +
+        theme(
+            axis.text = element_text(size = 4),
+            axis.ticks = element_line(linewidth = .1),
+            strip.text = element_text(size = 6),
+            panel.spacing = unit(0, "mm"),
+            panel.border = element_rect(colour = "black", fill = NA),
+            strip.background = element_rect(colour = "black", fill = NA)
+        )
+    ) %>%
+    map(GGally::ggmatrix_gtable) %>%
+    map(patchwork::wrap_elements) %>%
+    patchwork::wrap_plots(nrow = 1)
+```
+
+```{r}
+options(repr.plot.height = 5, repr.plot.width = 10)
+patchwork::wrap_plots(
+    cluscolguide, g,
+    ncol = 1,
+    heights = c(.01,.99)
+)
+```
+
+```{r}
+exdat_dhg <- pmap(
+    list(
+        strat_dat,
+        residtab,
+        probdfs
+    ),
+    function(ORIG, RESID, PROB){
+        tibble(
+            BMI = ORIG$bmi,
+            FGres = RESID$fg,
+            DHG = PROB$probDHG,
+            BC = PROB$probBC
+        )
+    }
+) %>%
+    bind_rows(.id = "sex")
+head(exdat_dhg)
+```
+
+```{r}
+cluscolmap
+```
+
+```{r}
+options(repr.plot.height = 5, repr.plot.width = 10)
+dhgres <- exdat_dhg %>%
+    ggplot(aes(BMI, FGres)) +
+    geom_point(aes(color = DHG), size = .25) +
+    scale_color_gradient(
+        low = alpha(
+            cluscolmap$ClusCol[
+                cluscolmap$Cluster == "DHG"
+            ], 
+            0
+        ),
+        high = cluscolmap$ClusCol[
+            cluscolmap$Cluster == "DHG"
+        ]
+    ) +
+    ggdensity::geom_hdr() +
+    geom_hline(yintercept = 0, lty = "dashed") +
+    facet_grid(~sex) +
+    theme_bw() +
+    labs(
+        x = NULL, y = "FG\nstandardised\nresiduals",
+        color = "DHG\nprobability",
+        alpha = "Overall\ndensity"
+    ) +
+    theme(
+        strip.text.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()
+    )
+dhgres
+```
+
+```{r}
+wtd_quantile <- function(x, p, q){
+    n <- sum(p)
+    indexes <- order(x)
+    x <- x[indexes]
+    p <- p[indexes]
+    p <- p / n
+    cdfprobs <- cumsum(c(0, p))
+    sapply(
+        setNames(q, q), 
+        function(QUANTILE) {
+            Q <- pbeta(cdfprobs, n * QUANTILE, n * (1 - QUANTILE))
+            W <- tail(Q, -1) - head(Q, -1)
+            sum(W * x)
+        }
+    )
+}
+```
+
+```{r}
+options(repr.plot.height = 1, repr.plot.width = 10)
+boxpld <- exdat_dhg %>%
+    pivot_longer(
+        c(DHG, BC), 
+        names_to = "Cluster",
+        values_to = "Prob"
+    ) %>%
+    nest(D = -c(sex, Cluster)) %>%
+    mutate(
+        D = map(
+            D,
+            ~wtd_quantile(
+                .x$BMI, .x$Prob, 
+                c(.025, .25, .5, .75, .975)
+            )
+        ),
+        D = map(D, ~tibble(name = names(.x), value = .x))
+    ) %>%
+    unnest(D) %>%
+    pivot_wider(names_prefix = "p")
+boxpld
+```
+
+```{r}
+options(repr.plot.height = 1, repr.plot.width = 10)
+bx1 <- boxpld %>%
+    filter(Cluster == "DHG") %>%
+    ggplot(aes(y = "DHG")) +
+    geom_boxplot(
+        aes(
+            xmin = p0.025,
+            xlower = p0.25,
+            xmiddle = p0.5,
+            xupper = p0.75,
+            xmax = p0.975
+        ),
+        stat = "identity",
+        fill = cluscolmap$ClusCol[
+            cluscolmap$Cluster == "DHG"
+        ]
+    ) +
+    facet_grid(~sex) +
+    coord_cartesian(
+        xlim = c(
+            min(exdat_dhg$BMI),
+            max(exdat_dhg$BMI)
+        )
+    ) +
+    labs(x = NULL, y = NULL) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.text.y = element_text(face = "bold"),
+        plot.margin = margin()
+    )
+bx1
+```
+
+```{r}
+options(repr.plot.height = 1, repr.plot.width = 10)
+bx2 <- boxpld %>%
+    filter(Cluster == "BC") %>%
+    ggplot(aes(y = "BC")) +
+    geom_boxplot(
+        aes(
+            xmin = p0.025,
+            xlower = p0.25,
+            xmiddle = p0.5,
+            xupper = p0.75,
+            xmax = p0.975
+        ),
+        stat = "identity",
+        fill = cluscolmap$ClusCol[
+            cluscolmap$Cluster == "BC"
+        ]
+    ) +
+    facet_grid(~sex) +
+    coord_cartesian(
+        xlim = c(
+            min(exdat_dhg$BMI),
+            max(exdat_dhg$BMI)
+        )
+    ) +
+    labs(x = "BMI (kg/m2)", y = NULL) +
+    theme_bw() +
+    theme(
+        strip.text.x = element_blank(),
+        axis.text.y = element_text(face = "bold"),
+        plot.margin = margin()
+    )
+bx2
+```
+
+```{r}
+options(repr.plot.height = 5, repr.plot.width = 10)
+patchwork::wrap_plots(
+    bx1,
+    patchwork::plot_spacer(),
+    dhgres +
+    geom_vline(
+        data = filter(boxpld, Cluster == "BC"),
+        aes(xintercept = p0.5),
+        color = cluscolmap$ClusCol[
+            cluscolmap$Cluster == "BC"
+        ]
+    ) +
+    geom_vline(
+        data = filter(boxpld, Cluster == "DHG"),
+        aes(xintercept = p0.5),
+        color = cluscolmap$ClusCol[
+            cluscolmap$Cluster == "DHG"
+        ]
+    ),
+    patchwork::plot_spacer(),
+    bx2,
+    ncol = 1,
+    heights = c(.05, -0.04, .9, -0.04, .05)
+)
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 15)
+strat_dat %>%
+    map(select, eid, all_of(BIOMARKERS)) %>%
+    map(pivot_longer, -eid) %>%
+    bind_rows(.id = "sex") %>%
+    ggplot(aes(value)) +
+    geom_density() +
+    ggh4x::facet_grid2(sex ~ name, scales = "free", independent = "all") +
+    theme_bw()
+```
+
+```{r}
+options(repr.plot.height = 4, repr.plot.width = 15)
+logtrdat <- strat_dat %>%
+    map(mutate, across(.cols = c(alt, crp, tg, fg, scr), .fns = log))
+map(logtrdat, head)
+```
+
+```{r}
+logtrdat %>%
+    map(select, eid, all_of(BIOMARKERS)) %>%
+    map(pivot_longer, -eid) %>%
+    bind_rows(.id = "sex") %>%
+    ggplot(aes(value)) +
+    geom_density() +
+    ggh4x::facet_grid2(sex ~ name, scales = "free", independent = "all") +
+    theme_bw()
+```
+
+```{r}
+residlogtrdat <- logtrdat %>% 
+    map(
+        ~sapply(
+            select(.x, all_of(BIOMARKERS)),
+            function(X){
+                lm(X ~ .x$age + .x$bmi + .x$smoking) %>%
+                    resid %>%
+                    scale %>%
+                    as.vector
+            }
+        )
+    )
+map(residlogtrdat, head)
+```
+
+```{r}
+logumap <- map(
+    residlogtrdat,
+    ~uwot::umap(
+        X = .x,
+        n_components = 2, 
+        n_neighbors = max(10, round(10 + 15 * (log10(nrow(.x) - 4)))), 
+        nn_method = "annoy", n_trees = 100, n_sgd_threads = "auto", 
+        init = "pca", n_epochs = 500, approx_pow = TRUE,
+        binary_edge_weights = TRUE, dens_scale = 1, 
+        ret_extra = c("model", "fgraph"), verbose = FALSE       
+    )
+)
+```
+
+```{r}
+options(repr.plot.res = 300, repr.plot.width = 7, repr.plot.height = 4)
+logumap %>%
+    map("embedding") %>%
+    map(data.frame) %>%
+    map2(maxprobdat, bind_cols) %>%
+    bind_rows(.id = "sex") %>%
+    mutate(Cluster = gsub("prob", "", Cluster)) %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(aes(color = Cluster), alpha = .1, shape = ".") +
+    scale_alpha_identity() +
+    scale_color_manual(
+        values = setNames(
+            cluscolmap$ClusCol,
+            cluscolmap$Cluster
+        ),
+        guide = guide_legend(
+            override.aes = list(shape = 19, alpha = 1)
+        )
+    ) +     
+    facet_wrap(~sex) +
+    theme_bw() +
+    labs(x = "UMAP1", y = "UMAP2")
+```
+
+```{r}
+residtab %>%
+    map(
+        mutate,
+        fav_adip = (
+            whr < 0 &
+            sbp < 0 &
+            dbp < 0 &
+            fg < 0 &
+            tg < 0 &
+            ldl < 0 &
+            hdl > 0 &
+            crp < 0 &
+            alt < 0 &
+            scr < 0
+        )
+    ) %>%
+    map(count, fav_adip) %>%
+    map(mutate, prop = 100 * n/sum(n)) %>%
+    bind_rows(.id = "sex")
+```
+
+```{r}
+residtab %>%
+    map(
+        mutate,
+        fav_adip = (
+            whr < 0 &
+            sbp < 0 &
+            dbp < 0 &
+            fg < 0 &
+            tg < 0 &
+            ldl < 0 &
+            hdl > 0 &
+            crp < 0 &
+            alt < 0 &
+            scr < 0
+        )
+    ) %>%
+    imap(
+        ~.x %>%
+            select(fav_adip) %>%
+            bind_cols(
+                data.frame(
+                    validclusmod$umapmod[validclusmod$sex == .y][[1]]$embedding
+                )
+            )
+    ) %>%
+    bind_rows(.id = "sex") %>%
+    ggplot(aes(X1, X2)) +
+    geom_point(alpha = .1, shape = ".") +
+    geom_point(data = . %>% filter(fav_adip), size = .25, alpha = .25, color = "red") + 
+    facet_wrap(~sex) +
+    theme_bw() +
+    labs(x = "UMAP1", y = "UMAP2")
+```
+
+# Generating a table of biomarkers for different levels of discordant probabilities
+
+```{r}
+newclus <- validclusmod %>%
+    transmute(
+        sex, 
+        clusmod = map(
+            clusmod, select, 
+            Cluster = validclus_name
+        )
+    ) %>%
+    unnest(clusmod)
+newclus
+```
+
+```{r}
+newclus <- newclus %>%
+    nest(D = -sex) %>%
+    mutate(
+        D = map(
+            D, 
+            expand_grid, 
+            ClusProf = Cluster,
+            ProbLevel = c(.2, .4, .6, .8)
+        )
+    ) %>%
+    unnest(D) %>%
+    filter(ClusProf != "BC") %>%
+    mutate(
+        Weight = (
+            ((Cluster == ClusProf) * ProbLevel) +
+            ((Cluster == "BC") * (1 - ProbLevel))
+        )
+    ) %>%
+    filter(Weight > 0) %>%
+    arrange(sex, ClusProf, ProbLevel)
+head(newclus)
+```
+
+```{r}
+newclusres <- newclus %>%
+    nest(D = -c(sex, ClusProf, ProbLevel)) %>%
+    inner_join(validclusmod, by = "sex") %>%
+    mutate(
+        sex,
+        D = map2(
+            D, clusmod, 
+            inner_join, 
+            by = c("Cluster" = "validclus_name")
+        ),
+        D = map(
+            D,
+            ~MGMM::rGMM(
+                n = 100000, 
+                d = length(.x$validclus_centers[[1]]),
+                k = nrow(.x),
+                pi = .x$Weight,
+                means = .x$validclus_centers, 
+                covs = .x$validclus_covmats
+            )
+        ),
+        D = map(D, colMeans),
+        D = map2(D, clusmod, ~setNames(.x, names(.y$validclus_centers[[1]])))
+    )
+```
+
+```{r}
+newclusres <- newclusres %>%
+    mutate(
+        D = map2(
+            D, residmod,
+            ~tibble(
+                Biomarker = names(.x), sdresidval = .x
+            ) %>%
+            inner_join(.y, by = "Biomarker") %>%
+            mutate(
+                sdresid = sdresidval * SDRes,
+                bmi = 30 * bmi,
+                age = 55 * age,
+                bmvalue = rowSums(pick(Intercept, bmi, age, sdresid)),
+                bmvalue = round(bmvalue, 2)
+            ) %>%
+            select(Biomarker, bmvalue) %>%
+            pivot_wider(names_from = Biomarker, values_from = bmvalue)
+        )
+    ) %>%
+    select(sex, ClusProf, ProbLevel, D) %>%
+    unnest(D)
+head(newclusres)
+```
+
+```{r}
+newclusres %>%
+    mutate(
+        across(c(sbp, dbp), round)
+    )
+```
+

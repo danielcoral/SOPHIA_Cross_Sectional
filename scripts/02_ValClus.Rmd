@@ -101,7 +101,7 @@ percsmoke %>%
             cohort,
             c(
                 "ukb" = "UKB",
-                "maastricht" = "MS",
+                "maastricht" = "TMS",
                 "rotterdam" = "RS",
                 "ghs" = "GHS"
             )
@@ -129,7 +129,7 @@ numgendesc %>%
             cohort,
             c(
                 "ukb" = "UKB",
-                "maastricht" = "MS",
+                "maastricht" = "TMS",
                 "rotterdam" = "RS",
                 "ghs" = "GHS"
             )
@@ -182,7 +182,7 @@ regcoefs %>%
             cohort,
             c(
                 "ukb" = "UKB",
-                "maastricht" = "MS",
+                "maastricht" = "TMS",
                 "rotterdam" = "RS",
                 "ghs" = "GHS"
             )
@@ -234,7 +234,7 @@ umap_projs %>%
             factor(cohort), 
             "ukb" = "UKB",
             "rotterdam" = "RS",
-            "maastricht" = "MS",
+            "maastricht" = "TMS",
             "ghs" = "GHS"
         )
     ) %>%
@@ -260,7 +260,7 @@ result_tab %>%
             cohort,
             c(
                 "ukb" = "UKB",
-                "maastricht" = "MS",
+                "maastricht" = "TMS",
                 "rotterdam" = "RS",
                 "ghs" = "GHS"
             )
@@ -489,7 +489,7 @@ validatedtab %>%
                                         shape = 21, size = 7) +
                 scale_fill_viridis_d(
                     option = "A", begin = .25, end = .75, direction = -1,
-                    labels = c(U = "UKB", M = "MS", R = "RS", G = "GHS"),
+                    labels = c(U = "UKB", M = "TMS", R = "RS", G = "GHS"),
                     guide = guide_legend(override.aes = list(size = 2))
                 ) +
                 ggraph::geom_node_text(aes(label = name), color = "white", fontface = "bold", size = 2) +

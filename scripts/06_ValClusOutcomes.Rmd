@@ -36,7 +36,7 @@ library(survival)
 And the functions we have prepared to facilitate some steps:
 
 ```{r}
-source("cross_sectional_FX2.R")
+source("06_cross_sectional_FX2.R")
 ```
 
 ---

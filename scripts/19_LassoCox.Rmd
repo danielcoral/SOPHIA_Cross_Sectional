@@ -1,0 +1,223 @@
+---
+title: An R Markdown document converted from "19_LassoCox.ipynb"
+output: html_document
+---
+
+# Running Lasso
+
+---
+
+## Libraries
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+library(survival)
+library(Matrix, warn.conflicts = FALSE)
+library(glmnet, quietly = TRUE)
+library(ggplot2)
+```
+
+```{r}
+options(repr.plot.res = 300)
+```
+
+## Pre-defined functions
+
+```{r}
+source("18_LassoCox.R")
+```
+
+## Stratified data
+
+```{r}
+load("../data/ukb/strat_dat.RData")
+```
+
+```{r}
+map(strat_dat, head)
+```
+
+## Validated clusters
+
+```{r}
+load("../data/validclusmod.RData")
+print(validclusmod)
+```
+
+## Pre-existing conditions and medications
+
+```{r}
+covar_dat <- read_tsv("../data/covar_dat.tsv", show_col_types = FALSE)
+head(covar_dat)
+```
+
+## Survival data
+
+### MACE
+
+```{r}
+survmacedat <- read_tsv("../data/survmacedat.tsv", show_col_types = FALSE)
+head(survmacedat)
+```
+
+### DM
+
+```{r}
+survdmdat <- read_tsv("../data/survdmdat.tsv", show_col_types = FALSE)
+head(survdmdat)
+```
+
+## Calculation of cluster probabilities
+
+```{r}
+clusterdfs <- clusterprobcalc(ClusModDf = validclusmod, StratDat = strat_dat)
+```
+
+```{r}
+print(clusterdfs)
+```
+
+## Adding covariates
+
+```{r}
+clusterdfs <- addcovardat(X = clusterdfs, CovarDat = covar_dat)
+```
+
+```{r}
+print(clusterdfs)
+```
+
+## Adding survival data
+
+```{r}
+clustersurvdfs <- addsurvdat(X = clusterdfs, SurvMACEDf = survmacedat, SurvDMDf = survdmdat)
+```
+
+```{r}
+print(clustersurvdfs)
+```
+
+## Creating follow-up subsets
+
+```{r}
+clustersurvdfs <- futsubsetsfx(clustersurvdfs)
+print(clustersurvdfs)
+```
+
+## Running Cox models
+
+```{r}
+coxmoddf <- coxmodels(clustersurvdfs)
+```
+
+```{r}
+print(coxmoddf)
+```
+
+## Extracting penalized estimates
+
+```{r}
+bestlasso <- coxmoddf %>%
+    transmute(
+        sex, outcome, fut,
+        mod_clus = map(
+            mod_clus, 
+            ~data.frame(Cluster = rownames(.x), estimate = .x[,1])
+        )
+    ) %>%
+    unnest(mod_clus) %>%
+    filter(grepl("^alr", Cluster)) %>%
+    mutate(Cluster = gsub("alrprob", "", Cluster))
+head(bestlasso)
+```
+
+## Estimates from standard models
+
+```{r}
+coxres <- rio::import("../data/ukb/result_file2.RData") %>%
+    pluck("SurvCoefs") %>%
+    filter(model == "clus") %>%
+    transmute(
+        sex, outcome, fut,
+        estimates = map2(
+            estimates, varcovmat,
+            ~data.frame(
+                Cluster = names(.x),
+                estimate = .x,
+                se = sqrt(diag(.y))
+            )
+        )
+    ) %>%
+    unnest(estimates) %>%
+    filter(grepl("^alr", Cluster)) %>%
+    mutate(Cluster = gsub("alrprob", "", Cluster))
+head(coxres)
+```
+
+## Cluster map
+
+```{r}
+cluscolmap <- validclusmod %>%
+    transmute(
+        clusmod = map(clusmod, select, Cluster = validclus_name, W = validclus_weights)
+    ) %>%
+    unnest(clusmod) %>%
+    group_by(Cluster) %>%
+    summarise(W2 = exp(sum(log((W))))) %>%
+    arrange(-W2) %>%
+    mutate(
+        Cluster = factor(Cluster, levels = Cluster),
+        ClusCol = scales::hue_pal()(n())
+    )
+cluscolmap
+```
+
+## Comparing standard and Lasso estimates
+
+```{r}
+options(repr.plot.width = 5, repr.plot.height = 3)
+coxres %>%
+    mutate(
+        esttyp = "Standard"
+    ) %>%
+    bind_rows(bestlasso) %>%
+    mutate(
+        esttyp = replace_na(esttyp, "Lasso"),
+        Cluster = factor(Cluster, levels = rev(cluscolmap$Cluster)),
+        ci = qnorm(1 - .05/2) * se,
+        ci = replace_na(ci, 0),
+        lwr = estimate - ci,
+        upr = estimate + ci
+    ) %>%
+    ggplot(aes(estimate, Cluster)) +
+    geom_vline(xintercept = 0, lty = "dashed") +
+    geom_linerange(
+        aes(xmin = lwr, xmax = upr)
+    ) +
+    geom_point(
+        aes(color = esttyp, shape = esttyp)
+    ) +
+    scale_color_manual(
+        name = "Estimate",
+        values = c(Standard = "black", Lasso = "red")
+    ) +
+    scale_shape_manual(
+        name = "Estimate",
+        values = c(Standard = 19, Lasso = 18)
+    ) +
+    ggh4x::facet_nested(
+        sex ~ outcome + fut, 
+        scales = "free", space = "free_y",
+    ) +
+    scale_x_continuous(n.breaks = 4, labels = \(x)round(x, 2)) +
+    labs(x = "Estimate\n95% CI", y = NULL) +
+    theme_bw() +
+    theme(
+        axis.text.x = element_text(size = 5),
+        axis.text.y = element_text(size = 6)
+    )
+```
+
