@@ -105,7 +105,7 @@ On a typical desktop computer this takes around 1 hour.
 
 ## Demo
 
-A demo showing how to run our clustering analysis on a simulated dataset can be found [here](./demo/demo.ipynb). This uses the same functions we used in our analysis. The simulated dataset is derived from the parameters of the profiles we identified, and will have the same format that we used in our original analysis. The parameters of the profiles are stored in the R object [validclusmod.RData](./data/validclusmod.RData).
+A demo showing how to run our clustering analysis on a simulated dataset can be found [here](./demo/demo.ipynb). This uses the same functions we used in our analysis. The simulated dataset is derived from the parameters of the profiles we identified, and will have the same format that we used in our original analysis. The parameters of the profiles are stored in the R object [validclusmod.RData](./data/validclusmod.RData). We also show in the demo how to calculate the probabilities to have the profiles we identified for a new set of individuals, using the simulated data as an example. This is useful to map new cohorts to these profiles.
 
 ## Reproduction
 
