@@ -27,7 +27,7 @@ options(repr.plot.res = 300)
 ## Pre-defined functions
 
 ```{r}
-source("18_LassoCox.R")
+source("15_LassoCox.R")
 ```
 
 ## Stratified data
