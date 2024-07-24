@@ -1,9 +1,8 @@
 # Description of script files
 
-|:-----------------------:|:----------------:|
-| File name.              | Description      |
-|:-----------------------:|:----------------:|
-| 00_DataPrep.Rmd         | Description      |
+| File name               | Description      |
+|-------------------------|------------------|
+| [00_DataPrep.Rmd](./scripts/00_DataPrep.Rmd)| Description      |
 | 01_Clustering           | Description |
 | 01_cross_sectional_FX.R | Description |
 | 02_ValClus.Rmd.         | Description |
