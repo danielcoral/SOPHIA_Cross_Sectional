@@ -8,7 +8,9 @@ How we used UMAP for clustering:
 
 ![](./plots/Clusmethod.png)
 
-An overall description of the files in the `scripts` folder, which we used to run our analysis is found [here](./guides/script_description.md)
+## Contents
+
+An overall description of the files in the `scripts` folder, which we used to run our analysis is found [here](./scripts_description.md)
 
 ## System requirements
 
@@ -36,6 +38,6 @@ A demo showing how to run our clustering analysis on a simulated dataset can be 
 
 ## Reproduction
 
-Due to data access restrictions, we cannot include the data necessary to reproduce all the quantitative results in the manuscript. However, it is possible to run the same analysis in a new dataset provided it has the same format as we used. See [01_Clustering.Rmd](./scripts/01_Clustering.Rmd) and [06_ValClusOutcomes.Rmd](./scripts/06_ValClusOutcomes.Rmd) for a detailed explanation of the formats expected and the functions used.
+Due to data access restrictions, we cannot include the data necessary to reproduce all the quantitative results in the manuscript. However, it is possible to run the same analysis in a new dataset provided it has the same format as we used. The simulated dataset from the demo shows how this should look like. Additionally, see [01_Clustering.Rmd](./scripts/01_Clustering.Rmd) and [06_ValClusOutcomes.Rmd](./scripts/06_ValClusOutcomes.Rmd) for a detailed explanation of the formats expected and the functions used.
 
 ---
