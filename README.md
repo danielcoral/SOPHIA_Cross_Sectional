@@ -101,7 +101,7 @@ install.packages(
 )
 ```
 
-On a typical desktop computer this takes around 1 hour.
+On a typical desktop computer this should take around 1 hour.
 
 ## Demo
 
