@@ -1,0 +1,371 @@
+---
+title: An R Markdown document converted from "01_Clustering.ipynb"
+output: html_document
+---
+
+# Heterogeneity in the relationship between BMI and risk biomarkers
+
+---
+
+***Authors:***
+
+- Daniel E. Coral
+
+- Femke Smit
+
+- Elena Santos
+
+- Ali Farzaneh
+
+---
+
+## Introduction
+
+This is a guideline to be followed by analysts in SOPHIA who are participating in the cross-sectional clustering project in the general population in Working Group 1. The idea is to standardize every step of the analysis across cohorts.
+
+Not everyone has to follow all the steps, as we require different things from every cohort. We have divided the participating cohorts into 4 groups:
+
+|Cohort group|Cohorts|
+|-:|-:|
+|*Discovery*|UK Biobank|
+|*Validation*|Maastricht|
+||Rotterdam|
+||GHS|
+|*Mental health*|Girona|
+||Maastricht|
+|*Intervention*|SCALE|
+||ABOS|
+
+This guideline is designed to be applied in discovery and validation cohorts. We will then apply what we learn in these cohorts to the mental health and intervention cohorts.
+
+---
+
+As a background, generally the relationship between BMI and multiple diseases is assumed to follow a continuum -- the higher the BMI, the higher the risk. However, it has also been found that in certain groups of people this relationship is disproportionally stronger or weaker for any given BMI. Our objective is to test the hypothesis that clustering-based approaches can be used to better capture these subgroups. An overview of the steps of our pipeline to test this hypothesis is shown in Figure 1.
+
+|![image.png](attachment:f8b0dea3-1987-4811-8e4a-0877b1297a75.png)|
+|-|
+|*Figure 1. Pipeline overview*|
+
+---
+
+## Software
+
+All steps are intended to be followed in the R environment. To facilitate the analyses we have put together a list of functions that can be used to run every step of this guideline. They are located in the accompanying file `cross_sectional_FX.R`, which you can load like this:
+
+```{r}
+source("01_cross_sectional_FX.R")
+```
+
+These functions have dependencies on the following packages:
+
+```{r}
+suppressMessages({
+    library(tibble)
+    library(readr)
+    library(dplyr)
+    library(tidyr)
+    library(purrr)
+    library(uwot)
+    library(igraph)
+    library(mvtnorm)
+})
+```
+
+The environment where discovery analysis in UK Biobank was executed is then the following:
+
+```{r}
+sessionInfo()
+```
+
+---
+
+## Initial input
+
+We have selected 10 traits, based on biological systems that are commonly affected by obesity:
+
+- Blood pressure: SBP and DBP.
+- Lipids: HDL, LDL, TG.
+- Fat distribution: WHR.
+- Glycemia: Fasting glucose.
+- Liver metabolism: ALT.
+- Kidney function: Creatinine.
+- Inflammation: CRP.
+
+The covariates that will be needed are:
+
+- Sex.
+- Age.
+- Current smoking status, coded as 1 if current smoker, 0 otherwise.
+
+The initial input table should look like the following:
+
+```{r}
+recoded_dat <- read_tsv("../data/recoded_dat.tsv", show_col_types = FALSE)
+head(recoded_dat)
+```
+
+The units of the contiuous variables we expect to run the analysis:
+
+- Age in years.
+- Sex as a string of either "Female" or "Male".
+- BMI in kg/m2.
+- WHR is unitless, calculated by dividing waist and hip circumferences measured in cm.
+- SBP and DBP in mmHg.
+- ALT in U/L.
+- sCr in umol/L.
+- CRP in mg/L.
+- HDL in mmol/L.
+- TG in mmol/L.
+- LDL in mmol/L.
+- FG in mmol/L.
+- Smoking as a dummy variable: 1 if currently smoking, 0 otherwise.
+
+<font color=red size=3.5>***Note:***</font> 
+
+For the functions included in the `cross_sectional_FX.R` to work, the input table should be ***exactly*** as shown above.
+
+---
+
+## Missing data
+
+Since our clustering method ignores individuals with missing values for any biomarker, the input data should only contain individuals who have all biomarker values. From the previous analyses, we know that:
+
+- Only including complete cases without losing too much data is possible in UK Biobank, Maastricht, GHS and ABOS.
+- In Rotterdam the initial input table contains some values have been imputed using a random forest algorithm.
+- In Girona only a small subset of individuals have CRP values.
+- In SCALE there are values for waist but not for hip circumference, so it is not possible to calculate WHR.
+
+Based on these observations we have made the following decisions on how to deal with missing values:
+
+|How to handle missing values|Cohorts|
+|-:|-:|
+|Only include complete cases.|UK Biobank|
+||Maastricht|
+||GHS|
+||ABOS|
+|||
+|Use data that has been imputed.|Rotterdam|
+|||
+|Retain all individuals.|Girona|
+||SCALE|
+
+***For the cohorts in the last group***, to be able to apply our method, we will assume that BMI explains the variability in the biomarkers that are missing. This assumption is based on what we have observed in the other cohorts. In practice, this means that the clustering method will focus on the biomarkers that are available to group individuals into clusters. The input table should still have the same columns so that the functions in `cross_sectional_FX.R` work properly.
+
+---
+
+## Remove possible errors in measurement
+
+In discovery and validation cohorts we will exclude biomarker measurements that are 5 SD away from the mean, under the assumption that these are most likely measurement errors. This can be done using the `remove_outliers` function that we have provided, which replaces outliers with `NA` values. Then we again make sure to have only complete cases:
+
+```{r}
+recoded_dat <- mutate(recoded_dat, 
+                      across(c(bmi, whr, sbp, dbp, alt, scr, crp, hdl, tg, ldl, fg), 
+                             ~remove_outliers(.x, sdunits = 5)))
+recoded_dat <- recoded_dat[complete.cases(recoded_dat),]
+```
+
+---
+
+## Stratify by sex
+
+All the pipeline is applied separately in each sex group. The functions we have designed work on a list containing two dataframes for each sex group, which we can obtain like this:
+
+```{r}
+strat_dat <- split(recoded_dat, ~sex)
+```
+
+To see the first lines of the two elements in the list:
+
+```{r}
+lapply(strat_dat, head)
+```
+
+---
+
+## Summary of initial input
+
+We need a table summarising the initial input, which can be generated like this:
+
+```{r}
+gendesc_tab <- get_general_descriptives(strat_dat)
+gendesc_tab
+```
+
+For smoking:
+
+- `Summary1` contains the categories.
+- `Summary2` contains the proportion of each category.
+
+For the rest (continuous) variables:
+
+- `Summary1` contains the mean and standard deviation.
+- `Summary2` contains the median and percentiles 2.5, 25, 75 and 97.5.
+
+---
+
+## Estimates of BMI-biomarker associations
+
+The first step of the pipeline is to generate sex-specific linear models of BMI for each variable, adjusting for age, and smoking. To do that we have the following function:
+
+```{r}
+mods <- get_bmimods(strat_dat)
+```
+
+The result is a table with a column that contains the models specific for each sex and biomarker:
+
+```{r}
+print(mods)
+```
+
+As an example, we can print the summary of the female model for CRP:
+
+```{r}
+summary(mods$mod[mods$sex == "Female" & mods$Biomarker == "crp"][[1]])
+```
+
+We then use this table to generate a table containing the estimates of the effect of BMI as well as the covariates on every biomarker:
+
+```{r}
+bmicoefs_tab <- get_bmicoefs(mods)
+bmicoefs_tab
+```
+
+---
+
+## Generate table with residual values
+
+The next step in the pipeline is to calculate for each individual how much they deviate from the expected given the BMI. To do that we have the following function:
+
+```{r}
+residtab <- get_residtabs(strat_dat, mods)
+```
+
+```{r}
+lapply(residtab, head)
+```
+
+---
+
+## Obtaining clusters and probabilities of allocation
+
+We use this residuals to run UMAP, which we use not only to obtain a projection of residual data in 2 dimensions, but also to run a probabilistic network clustering algorithm. We have wrapped all the clustering steps in a single function that we apply to the `residtab` object:
+
+```{r}
+cluster_results <- get_cluster_results(residtab)
+```
+
+The result is a list containing the UMAP model, the parameters of the clusters found, the modularity score, which is a measure of the quality of the network partition, and the allocation probabilities of individuals to all clusters:
+
+```{r}
+lapply(cluster_results, names)
+```
+
+The `umap_model` object contains the necessary elements to map new individuals to an existing embedding, we can extract this object with the following function:
+
+```{r}
+umap_models <- get_umap_mod(cluster_results)
+```
+
+This object may be useful for future analyses. However, this object may contain individual data. Additionally, for the current analyses the only object we require from `umap_model` from other cohorts is the embedding for visual assessment. Therefore, we have the following function so that in `umap_model` only the embedding is retained:
+
+```{r}
+cluster_results <- clean_cluster_results(cluster_results)
+```
+
+---
+
+## Table summarising clusters
+
+To understand what characterizes the clusters found, we will need a table with descriptives of the distribution of residuals per cluster, which can be generated like this:
+
+```{r}
+clustersummary <- get_clustersummary(cluster_results)
+```
+
+```{r}
+head(clustersummary)
+```
+
+We also need the distribution of the biomarkers in the clusters in their natural scale. To calculate this for a specific cluster, we use all individuals, and weigh each individual by their corresponding cluster allocation probability. The function for this is the following:
+
+```{r}
+cluster_descriptives <- get_cluster_descriptives(cluster_results, strat_dat)
+```
+
+```{r}
+head(cluster_descriptives)
+```
+
+---
+
+## Relationship between BMI and biomarkers in each cluster
+
+Given that the relationship between BMI and biomarkers is expected to be different in these clusters compared to the overall relationship found above, we will quantify how much it changed by comparing models weighted by probabilities of each cluster. The function is the following:
+
+```{r}
+clusbmicoefs <- get_bmicoefs_clusters(cluster_results, strat_dat)
+```
+
+```{r}
+head(clusbmicoefs)
+```
+
+---
+
+## Gathering and saving results
+
+We'll save all results in a single file:
+
+```{r}
+result_file <- list(
+    General_descriptives = gendesc_tab,
+    BMI_coefficients = bmicoefs_tab,
+    Cluster_results = cluster_results,
+    Cluster_summary = clustersummary,
+    Cluster_descriptives = cluster_descriptives,
+    Cluster_BMI_coefficients = clusbmicoefs
+)
+```
+
+```{r}
+save(result_file, file = "../data/ukb/result_file.RData")
+```
+
+---
+
+## Uploading results
+
+We require that you upload the 'result_file.RData' file, which does not contain any individual level data, to the Teams folder in SOPHIA, which would be located here:
+
+> CrossWP > Analyst working groups > WG1 > UMAP_project > *cohort_name* > data
+
+---
+
+## Saving other objects generated
+
+Other objects generated that we would ask to save for future analyses, but we won't ask you to upload:
+
+- The inputa data, not residualised:
+
+```{r}
+save(strat_dat, file = "../data/ukb/strat_dat.RData")
+```
+
+- The input data, residualised:
+
+```{r}
+save(residtab, file = "../data/ukb/residtab.RData")
+```
+
+- The UMAP models:
+
+```{r}
+iwalk(
+    umap_models,
+    ~save_uwot(
+        model = .x, 
+        file = paste0("/ludc/Home/daniel_c/projects/DVA/CrossSectionalBMI/data/ukb/umapmod_", .y)
+    )
+)
+```
+
