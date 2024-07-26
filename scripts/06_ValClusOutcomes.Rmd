@@ -13,8 +13,6 @@ output: html_document
 
 - Femke Smit
 
-- Elena Santos
-
 - Ali Farzaneh
 
 ---

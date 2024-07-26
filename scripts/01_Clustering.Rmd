@@ -13,8 +13,6 @@ output: html_document
 
 - Femke Smit
 
-- Elena Santos
-
 - Ali Farzaneh
 
 ---
@@ -23,28 +21,18 @@ output: html_document
 
 This is a guideline to be followed by analysts in SOPHIA who are participating in the cross-sectional clustering project in the general population in Working Group 1. The idea is to standardize every step of the analysis across cohorts.
 
-Not everyone has to follow all the steps, as we require different things from every cohort. We have divided the participating cohorts into 4 groups:
-
 |Cohort group|Cohorts|
 |-:|-:|
 |*Discovery*|UK Biobank|
 |*Validation*|Maastricht|
 ||Rotterdam|
 ||GHS|
-|*Mental health*|Girona|
-||Maastricht|
-|*Intervention*|SCALE|
-||ABOS|
 
 This guideline is designed to be applied in discovery and validation cohorts. We will then apply what we learn in these cohorts to the mental health and intervention cohorts.
 
 ---
 
-As a background, generally the relationship between BMI and multiple diseases is assumed to follow a continuum -- the higher the BMI, the higher the risk. However, it has also been found that in certain groups of people this relationship is disproportionally stronger or weaker for any given BMI. Our objective is to test the hypothesis that clustering-based approaches can be used to better capture these subgroups. An overview of the steps of our pipeline to test this hypothesis is shown in Figure 1.
-
-|![image.png](attachment:f8b0dea3-1987-4811-8e4a-0877b1297a75.png)|
-|-|
-|*Figure 1. Pipeline overview*|
+As a background, generally the relationship between BMI and multiple diseases is assumed to follow a continuum -- the higher the BMI, the higher the risk. However, it has also been found that in certain groups of people this relationship is disproportionally stronger or weaker for any given BMI. Our objective is to test the hypothesis that clustering-based approaches can be used to better capture these subgroups. 
 
 ---
 
@@ -128,28 +116,10 @@ For the functions included in the `cross_sectional_FX.R` to work, the input tabl
 
 ## Missing data
 
-Since our clustering method ignores individuals with missing values for any biomarker, the input data should only contain individuals who have all biomarker values. From the previous analyses, we know that:
+Since our clustering method ignores individuals with missing values for any biomarker, the input data should only contain individuals who have all biomarker values. We know that:
 
-- Only including complete cases without losing too much data is possible in UK Biobank, Maastricht, GHS and ABOS.
+- Only including complete cases without losing too much data is possible in UK Biobank, Maastricht and GHS.
 - In Rotterdam the initial input table contains some values have been imputed using a random forest algorithm.
-- In Girona only a small subset of individuals have CRP values.
-- In SCALE there are values for waist but not for hip circumference, so it is not possible to calculate WHR.
-
-Based on these observations we have made the following decisions on how to deal with missing values:
-
-|How to handle missing values|Cohorts|
-|-:|-:|
-|Only include complete cases.|UK Biobank|
-||Maastricht|
-||GHS|
-||ABOS|
-|||
-|Use data that has been imputed.|Rotterdam|
-|||
-|Retain all individuals.|Girona|
-||SCALE|
-
-***For the cohorts in the last group***, to be able to apply our method, we will assume that BMI explains the variability in the biomarkers that are missing. This assumption is based on what we have observed in the other cohorts. In practice, this means that the clustering method will focus on the biomarkers that are available to group individuals into clusters. The input table should still have the same columns so that the functions in `cross_sectional_FX.R` work properly.
 
 ---
 

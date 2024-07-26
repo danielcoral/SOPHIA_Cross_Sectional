@@ -202,7 +202,7 @@ umapclus_fx <- function(RESIDMAT){
     umapres <- uwot::umap(
         Xmat, n_components = 2, 
         n_neighbors = nn, nn_method = "annoy", n_trees = 100, n_sgd_threads = "auto", 
-        init = "pca", n_epochs = 500, approx_pow = TRUE,
+        init = "pca", n_epochs = 500,
         binary_edge_weights = TRUE, dens_scale = 1, 
         ret_extra = c("model", "fgraph"), verbose = FALSE       
     )
