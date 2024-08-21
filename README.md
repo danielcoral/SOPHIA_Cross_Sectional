@@ -17,7 +17,7 @@ An overall description of the files in the [scripts](./scripts) folder, which we
 We run the analysis in the following R environment and package versions:
 
 ```{r}
-R version 4.3.3 (2024-02-29)
+R version 4.2.3 (2023-03-15)
 Platform: x86_64-conda-linux-gnu (64-bit)
 Running under: Red Hat Enterprise Linux 9.2 (Plow)
 
