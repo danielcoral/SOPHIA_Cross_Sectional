@@ -1,0 +1,533 @@
+---
+title: An R Markdown document converted from "11_DataEthnic.ipynb"
+output: html_document
+---
+
+## Data from other ethnicities
+
+```{r}
+library(readr)
+library(dplyr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(purrr)
+```
+
+---
+
+## Baseline data
+
+```{r}
+tab_name <- "~/projects/DVA/Data/UKBiobank/ukb_57232/data_files/41806.tab"
+```
+
+Locating columns needed:
+
+```{r}
+tab_vars <- tribble(
+    ~colid, ~colnam, ~coltyp,
+    ## Basic
+    "f.eid", "eid", "n",
+    "f.53.0.0", "date0", "D",
+    "f.31.0.0", "sex", "n",
+    "f.21003.0.0", "age", "n",
+    ## Anthropometric
+    "f.21001.0.0", "bmi", "n",
+    "f.48.0.0", "waist_circumference", "n",
+    "f.49.0.0", "hip_circumference", "n",
+    "f.50.0.0", "height", "n",
+    ## Blood pressure
+    "f.4080.0.0", "sbp_01", "n",
+    "f.4080.0.1", "sbp_02", "n",
+    "f.4079.0.0", "dbp_01", "n",
+    "f.4079.0.1", "dbp_02", "n",
+    ## Liver function
+    "f.30620.0.0", "alt", "n",
+    ## Kidney function
+    "f.30700.0.0", "creatinine", "n",
+    ## Inflammatory markers
+    "f.30710.0.0", "crp", "n",
+    ## Lipid fractions
+    "f.30760.0.0", "hdl", "n",
+    "f.30780.0.0", "ldl", "n",
+    "f.30870.0.0", "tg", "n",
+    ## Glycemia
+    "f.30740.0.0", "glucose", "n",
+    ## Smoking
+    "f.1239.0.0", "current_smoker", "n",
+    ## Caucasian ancestry
+    "f.22006.0.0", "caucasian", "n",
+    ## Self-reported ethnicity
+    "f.21000.0.0", "srethnicity", "n"
+)
+```
+
+Collecting positions of these columns in the data:
+
+```{r}
+tab_vars <- paste("head -1", tab_name, "| tr '\t' '\n'") %>%
+    pipe %>%
+    read_table(col_names = "colid", col_types = "c") %>%
+    ## Position of columns in table
+    mutate(colpos = row_number()) %>%
+    ## Extracting position and name of variables of interest
+    inner_join(tab_vars, by = "colid")
+head(tab_vars)
+```
+
+Fasting time (preprocessed from a second application):
+
+```{r}
+fast_time <- read_tsv("~/projects/DVA/Data/UKBiobank/fasting_time_ukb.tsv", show_col_types = FALSE)
+head(fast_time)
+```
+
+Preparing to join with rest of columns:
+
+```{r}
+fast_time <- transmute(fast_time, eid = eid_pascal, fasting_time)
+head(fast_time)
+```
+
+Preparing the `bash` command to extract columns of interest:
+
+```{r}
+column_cmd <- paste("cut -f", paste(tab_vars$colpos, collapse = ","), tab_name)
+cat(column_cmd)
+```
+
+Executing the command and passing to `R`:
+
+```{r}
+crude_dat <- read_tsv(
+    file = pipe(column_cmd),
+    ## Replacing column header with variable names
+    skip = 1, col_names = tab_vars$colnam,
+    ## All columns are numeric
+    col_types = paste(tab_vars$coltyp, collapse = "")
+) %>%
+    ## Adding fasting time
+    inner_join(fast_time, by = "eid")
+head(crude_dat)
+```
+
+```{r}
+nrow(crude_dat)
+```
+
+```{r}
+recoded_ethn <- crude_dat %>%
+    ## Only ancestries other than Caucasian
+    filter(is.na(caucasian)) %>%
+    select(-caucasian)
+nrow(recoded_ethn)
+```
+
+```{r}
+recoded_ethn$srethnicity %>% table
+```
+
+```{r}
+ethnicitytab <- tribble(
+    ~Ethnicity, ~srethnicity,
+    "SouthAsian", c(3001, 3002, 3003),
+    "African", c(4, 4001, 4002, 4003),
+    "Chinese", c(5)
+) %>%
+    unnest(srethnicity)
+ethnicitytab
+```
+
+```{r}
+recoded_ethn <- recoded_ethn %>%
+    inner_join(ethnicitytab, by = "srethnicity")
+nrow(recoded_ethn)
+```
+
+```{r}
+recoded_ethn <- recoded_ethn %>%
+    transmute(eid, age, Ethnicity,
+              sex = ifelse(sex == 0, "Female", "Male"),
+              ## Anthropometric
+              bmi, 
+              whr = waist_circumference / hip_circumference,
+              ## Blood pressure
+              sbp = rowMeans(cbind(sbp_01, sbp_02), na.rm = TRUE),
+              dbp = rowMeans(cbind(dbp_01, dbp_02), na.rm = TRUE),
+              ## Liver function
+              alt,
+              ## Kidney function
+              scr = creatinine,
+              ## Inflammatory markers
+              crp,
+              ## Lipid fractions
+              hdl, tg, ldl,
+              ## Glycemia - At least fasting time of 4 hours
+              fg = ifelse(fasting_time >= 4, glucose, NaN),
+              ## Current smoking status
+              smoking = case_when(current_smoker %in% c(1,2) ~ 1,
+                                  current_smoker == 0 ~ 0,
+                                  TRUE ~ NaN)) %>%
+    ## Only complete cases
+    drop_na
+head(recoded_ethn)
+nrow(recoded_ethn)
+```
+
+```{r}
+table(recoded_ethn$Ethnicity)
+```
+
+```{r}
+recoded_ethn <- recoded_ethn %>%
+    group_by(Ethnicity) %>%
+    filter(n() >= 1000) %>%
+    ungroup
+table(recoded_ethn$Ethnicity)
+```
+
+## Covariate data
+
+```{r}
+covar_dat <- read_tsv("../data/covar_dat.tsv", show_col_types = FALSE)
+head(covar_dat)
+```
+
+## MACE data from hospital and death records
+
+### Ocurrences in hospital records
+
+Hospital records - main table:
+
+```{r}
+hesin <- read_tsv(
+    "~/projects/DVA/Data/UKBiobank/ukb_57232/hes_data/hesin.txt",
+    guess_max = 50000, show_col_types = FALSE
+)
+print(data.frame(head(hesin)))
+```
+
+Hospital records - Diagnosis table:
+
+```{r}
+hesin_diag <- read_tsv(
+    "~/projects/DVA/Data/UKBiobank/ukb_57232/hes_data/hesin_diag.txt", 
+    skip = 1,
+    col_types = "nnn-c-c-",
+    col_names = c("eid", "ins_index", "arr_index", "diag_icd9", "diag_icd10")
+)
+head(hesin_diag)
+```
+
+Joining tables:
+
+```{r}
+hesin_join <- hesin %>%
+    transmute(eid, ins_index, 
+              event_date = coalesce(epistart, epiend, elecdate, admidate, epiend, disdate),
+              event_date = lubridate::dmy(event_date)) %>%
+    inner_join(hesin_diag) %>%
+    select(-c(ins_index, arr_index)) %>%
+    rename(ICD_9 = diag_icd9, ICD_10 = diag_icd10) %>%
+    pivot_longer(c(ICD_9, ICD_10), names_to = "CODESYS", values_to = "CODE", values_drop_na = TRUE)
+head(hesin_join)
+```
+
+### Occurrences from mortality data
+
+Mortality data - date:
+
+```{r}
+mordate <- read_tsv("~/projects/DVA/Data/UKBiobank/ukb_57232/mortality/death.txt", show_col_types = FALSE)
+head(mordate)
+```
+
+Mortality data - cause:
+
+```{r}
+morcause <- read_tsv("~/projects/DVA/Data/UKBiobank/ukb_57232/mortality/death_cause.txt", show_col_types = FALSE)
+head(morcause)
+```
+
+Mortality - Join tables:
+
+```{r}
+mor <- inner_join(mordate, morcause) %>%
+    transmute(eid, 
+              event_date = lubridate::dmy(date_of_death),
+              CODESYS = "ICD_10", CODE = cause_icd10)
+head(mor)
+```
+
+### Joining occurrences
+
+```{r}
+hesmort_outcomes <- bind_rows(
+    hesin_join, mor
+)
+head(hesmort_outcomes)
+```
+
+### Finding MACE events
+
+MACE codes:
+
+```{r}
+mace_codes <- read_tsv("../data/MACE_CODES.tsv", show_col_types = FALSE)
+head(mace_codes)
+```
+
+```{r}
+outcome_lookup <- mace_codes %>%
+    group_by(OUTCOME, CODESYS) %>%
+    nest %>%
+    mutate(
+        data = map_chr(data, ~paste0("^", .x$CODE, collapse = "|"))
+    ) %>%
+    ungroup
+outcome_lookup
+```
+
+```{r}
+outcome_lookup_res <- outcome_lookup %>%
+    transmute(
+        outcome = OUTCOME,
+        res = map2(
+            CODESYS, data,
+            ~hesmort_outcomes %>% 
+                filter(CODESYS == .x, 
+                       grepl(.y, CODE)) %>%
+                select(eid, event_date)
+        )
+    ) %>%
+    unnest(res)
+head(outcome_lookup_res)
+```
+
+### Finding first occurrences of MACE events
+
+```{r}
+mace_firstoccur <- outcome_lookup_res %>%
+    select(-outcome) %>%
+    group_by(eid) %>%
+    slice_min(event_date, with_ties = FALSE) %>%
+    ungroup
+head(mace_firstoccur)
+```
+
+### First and last date for all individuals - up to 10 years of follow-up
+
+```{r}
+censordate <- lubridate::ymd("2018-02-28")
+```
+
+```{r}
+datedat <- mor %>%
+    select(eid, lastdate = event_date) %>%
+    group_by(eid) %>%
+    slice_min(lastdate, with_ties = FALSE) %>%
+    ungroup %>%
+    right_join(crude_dat[,c("eid", "date0")]) %>%
+    transmute(
+        eid, date0, 
+        lastdate = replace_na(lastdate, censordate),
+        lastdate = if_else(lastdate > censordate, censordate, lastdate),
+        lastdate = if_else(lastdate > date0 + lubridate::years(10), 
+                           date0 + lubridate::years(10), lastdate)
+    ) %>%
+    drop_na
+head(datedat)
+nrow(datedat)
+```
+
+### Preparing data for survival analysis
+
+```{r}
+survmacedat <- mace_firstoccur %>%
+    transmute(
+        eid,
+        outcome_value = 1, 
+        outcome_date = event_date
+    ) %>%
+    right_join(datedat, by = "eid") %>%
+    filter(eid %in% recoded_ethn$eid) %>%
+    mutate(
+        outcome_value = replace_na(outcome_value, 0),
+        outcome_date = coalesce(outcome_date, censordate),
+        event_after_censor = outcome_value == 1 & outcome_date > lastdate,
+        outcome_value = if_else(event_after_censor, 0, outcome_value),
+        outcome_date = if_else(event_after_censor, lastdate, outcome_date),
+        outcome_timeyrs = as.numeric(outcome_date - date0) / 365.25
+    ) %>%
+    filter(outcome_date > date0) %>%
+    select(-c(date0, outcome_date, lastdate, event_after_censor))
+head(survmacedat)
+nrow(survmacedat)
+```
+
+---
+
+## Diabetes progression
+
+```{r}
+primcareinds <- read_tsv("../data/primcareinds.tsv", col_names = "eid", col_types = "n")
+head(primcareinds)
+```
+
+```{r}
+nrow(primcareinds)
+```
+
+We will only use data from individuals that we include in our primary analysis:
+
+```{r}
+primcareinds <- primcareinds %>%
+    filter(eid %in% recoded_ethn$eid)
+nrow(primcareinds)
+```
+
+We can add to this set of individuals their corresponding date of recruitment in UK Biobank and last date of follow-up, which we will need for the survival analysis:
+
+```{r}
+primcareinds <- primcareinds %>%
+    inner_join(datedat, by = "eid")
+head(primcareinds)
+nrow(primcareinds)
+```
+
+We further need to exclude individuals who already reported having diabetes at recruitment:
+
+```{r}
+primcareinds <- primcareinds %>%
+    inner_join(covar_dat[,c("eid", "T1D", "T2D", "Insulin", "AntiDM")], by = "eid")
+head(primcareinds)
+nrow(primcareinds)
+```
+
+```{r}
+primcareinds <- primcareinds %>%
+    filter(T1D == 0 & T2D == 0 & Insulin == 0 & AntiDM == 0) %>%
+    select(-c(T1D, T2D, Insulin, AntiDM))
+head(primcareinds)
+nrow(primcareinds)
+```
+
+Next, we'll extract codes registered in primary care data corresponding to clinical entities equivalent to diabetes were selected from a curated list found [here](https://github.com/drkgyoung/UK_Biobank_codelists). They are organized in the following table:
+
+Importing results:
+
+```{r}
+dmeventsprimcare <- read_tsv(
+    "../data/DM_events_PrimCare.tsv", 
+    col_names = c("eid", "data_provider", "event_dt", "read_2", "read_3", "value_1", "value_2", "value_3"),
+    col_types = "nncccccc"
+)
+head(dmeventsprimcare)
+```
+
+Only individuals included in our analysis:
+
+```{r}
+dmevents <- dmeventsprimcare %>%
+    transmute(eid, outcome_date = lubridate::dmy(event_dt)) %>%
+    inner_join(primcareinds)
+head(dmevents)
+```
+
+We also need to extract events from hospital records and mortality data. The codes to use are the following:
+
+```{r}
+dm_codes_hes <- tribble(
+    ~CODESYS, ~CODE,
+    "ICD_9", "250",
+    "ICD_10", "E10",
+    "ICD_10", "E11"
+)
+```
+
+Similar to what we did for MACE:
+
+```{r}
+hesmort_dm <- hesmort_outcomes %>%
+    inner_join(primcareinds)
+head(hesmort_dm)
+length(unique(hesmort_dm$eid))
+```
+
+Combining data from the two sources:
+
+```{r}
+dmevents <- dm_codes_hes %>%
+    group_by(CODESYS) %>%
+    nest %>%
+    mutate(
+        data = map_chr(data, ~paste0("^", .x$CODE, collapse = "|")),
+        data = map2(
+            CODESYS, data,
+            ~hesmort_dm %>% 
+                filter(CODESYS == .x, 
+                       grepl(.y, CODE)) %>%
+                select(eid, outcome_date = event_date, date0, lastdate)
+        )
+    ) %>%
+    unnest(data) %>%
+    ungroup %>%
+    select(-CODESYS) %>%
+    bind_rows(dmevents)
+head(dmevents)
+```
+
+Now we need the first event recorded:
+
+```{r}
+dmevents <- dmevents %>%
+    group_by(eid) %>%
+    slice_min(outcome_date, with_ties = FALSE) %>%
+    ungroup
+head(dmevents)
+nrow(dmevents)
+```
+
+Now formatting into the survival format:
+
+```{r}
+survdmdat <- dmevents %>%
+    transmute(eid, outcome_value = 1, outcome_date) %>%
+    right_join(primcareinds, by = "eid") %>%
+    mutate(
+        outcome_value = replace_na(outcome_value, 0),
+        outcome_date = coalesce(outcome_date, censordate),
+        event_after_censor = outcome_value == 1 & outcome_date > lastdate,
+        outcome_value = if_else(event_after_censor, 0, outcome_value),
+        outcome_date = if_else(event_after_censor, lastdate, outcome_date),
+        outcome_timeyrs = as.numeric(outcome_date - date0) / 365.25
+    ) %>%
+    filter(outcome_date > date0) %>%
+    select(-c(date0, outcome_date, lastdate, event_after_censor))
+head(survdmdat)
+nrow(survdmdat)
+```
+
+---
+
+## Saving tables generated
+
+Initial input:
+
+```{r}
+write_tsv(recoded_ethn, "../data/recoded_ethn.tsv")
+```
+
+Outcome data:
+
+- MACE
+
+```{r}
+write_tsv(survmacedat, "../data/survmacedat_ethn.tsv")
+```
+
+- Time to diabetes diagnosis:
+
+```{r}
+write_tsv(survdmdat, "../data/survdmdat_ethn.tsv")
+```
+
