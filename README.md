@@ -1,5 +1,7 @@
 # Profiles of phenotypic discordance for a given BMI
 
+[![DOI](https://zenodo.org/badge/1095083437.svg)](https://doi.org/10.5281/zenodo.18977321)
+
 Overall analysis pipeline for discovery and replication:
 
 ![](./plots/AnalysisPlot.png)
